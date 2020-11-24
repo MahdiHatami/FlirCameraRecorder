@@ -25,13 +25,6 @@ cam.Init()
 cam.UserSetSelector.SetValue(PySpin.UserSetSelector_Default)
 cam.UserSetLoad()
 
-# set acquisition. Continues acquisition. Auto exposure off. Set frame rate.
-cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
-cam.ExposureMode.SetValue(PySpin.ExposureMode_Timed)
-cam.ExposureTime.SetValue(ExposureTime * 1e3)
-cam.AcquisitionFrameRateEnable.SetValue(True)
-cam.AcquisitionFrameRate.SetValue(Capture_FPS)
 
 # set analog. Set Gain. Turn off Gamma.
 cam.GainAuto.SetValue(PySpin.GainAuto_Off)
