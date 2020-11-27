@@ -4,7 +4,7 @@ from skimage import transform
 import matplotlib.pyplot as plt
 import os
 
-save_folder = '/capture_image/captured'
+save_folder = 'capture_image/captured'
 ExposureTime = 10  # in millisecond
 Capture_FPS = 5.  # Less than 10 FPS for 20MP camera at 12bit.
 Gain = 0.
@@ -24,7 +24,6 @@ cam.Init()
 # load default configuration
 cam.UserSetSelector.SetValue(PySpin.UserSetSelector_Default)
 cam.UserSetLoad()
-
 
 # set analog. Set Gain. Turn off Gamma.
 cam.GainAuto.SetValue(PySpin.GainAuto_Off)
@@ -101,9 +100,9 @@ def save_img(image):
     else:
         img_nd = image.GetNDArray()
     imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), (
-                transform.rescale(img_nd, 0.2, multichannel=False,
-                                  mode='constant', anti_aliasing=False,
-                                  preserve_range=False) * 255).round().astype(
+            transform.rescale(img_nd, 0.2, multichannel=False,
+                              mode='constant', anti_aliasing=False,
+                              preserve_range=False) * 255).round().astype(
         np.uint8))
     np.save('{}/{}'.format(save_folder, time_str), img_nd)
 
