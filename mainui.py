@@ -38,6 +38,7 @@ class CamGUI(object):
 
         else:
             self.cam = self.cam_list[0]
+            self.cam.Init()
             self.nodemap = self.cam.GetNodeMap()
 
     @staticmethod
