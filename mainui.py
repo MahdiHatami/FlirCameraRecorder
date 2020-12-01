@@ -5,7 +5,6 @@ from tkinter import Button, messagebox
 
 import PySpin
 import imageio
-import matplotlib.pyplot as plt
 import numpy as np
 from skimage import transform
 
@@ -20,19 +19,25 @@ global continue_recording
 
 
 class CamGUI(object):
-    system = PySpin.System.GetInstance()
+    # Retrieve singleton reference to system object
+    cam = None
 
     def __init__(self):
         if not os.path.exists(save_folder):
             os.mkdir(save_folder)
 
-        self.cam_list = self.system.GetCameras()
+        # camera initialization
         self.system = PySpin.System.GetInstance()
-        self.cam = None
+        self.cam_list = self.system.GetCameras()
+        self.num_cameras = self.cam_list.GetSize()
         self.continue_recording = True
-        if self.cam is not None:
-            self.sNodemap = self.cam.GetTLStreamNodeMap()
-            self.nodemap_tldevice = self.cam.GetTLDeviceNodeMap()
+        if self.num_cameras == 0:
+            self.cam_list.Clear()
+            self.system.ReleaseInstance()
+            messagebox.showinfo(title="Kamera", message="Kamera Bağlantısı bulunamadı.")
+
+        else:
+            self.cam = self.cam_list[0]
             self.nodemap = self.cam.GetNodeMap()
 
     @staticmethod
@@ -53,32 +58,7 @@ class CamGUI(object):
     def handle_close(self):
         self.continue_recording = True
 
-    def acquire_and_display_images(self):
-        try:
-            self.cam = self.cam.Init()
-        except PySpin.SpinnakerException as ex:
-            print('Error: %s' % ex)
-
-        # Change buffer handling mode to NewestOnly
-        node_bufferhandling_mode = PySpin.CEnumerationPtr(
-            self.sNodemap.GetNode('StreamBufferHandlingMode'))
-        if not PySpin.IsAvailable(node_bufferhandling_mode) or not PySpin.IsWritable(
-                node_bufferhandling_mode):
-            print('Unable to set stream buffer handling mode.. Aborting...')
-            return False
-
-        # Retrieve entry node from enumeration node
-        node_newestonly = node_bufferhandling_mode.GetEntryByName('NewestOnly')
-        if not PySpin.IsAvailable(node_newestonly) or not PySpin.IsReadable(
-                node_newestonly):
-            print('Unable to set stream buffer handling mode.. Aborting...')
-            return False
-
-        # Retrieve integer value from entry node
-        node_newestonly_mode = node_newestonly.GetValue()
-
-        # Set integer value from entry node as new value of enumeration node
-        node_bufferhandling_mode.SetIntValue(node_newestonly_mode)
+    def acquire_images(self):
 
         print('*** IMAGE ACQUISITION ***\n')
         try:
@@ -118,11 +98,7 @@ class CamGUI(object):
                             'Image incomplete with image status %d ...' %
                             image_result.GetImageStatus())
                     else:
-                        # Getting the image data as a numpy array
-                        image_data = image_result.GetNDArray()
-                        plt.imshow(image_data, cmap='gray')
-                        plt.pause(0.001)
-                        plt.clf()
+                        self.save_img(image_result)
 
                     image_result.Release()
 
@@ -172,22 +148,20 @@ class CamGUI(object):
         messagebox.showinfo(title="Kayıt", message="Kayıt işlemi durduruldu")
 
     def start_recording_callback(self):
-        num_cameras = self.cam_list.GetSize()
 
         # Finish if there are no cameras
-        if num_cameras == 0:
+        if self.num_cameras == 0:
             self.cam_list.Clear()
             self.system.ReleaseInstance()
             messagebox.showinfo(title="Kamera", message="Kamera Bağlantısı bulunamadı.")
             return False
 
-        self.cam = self.cam_list.GetByIndex(0)
-        self.setup_camera_params()
-        self.acquire_and_display_images()
+        # self.setup_camera_params()
+        self.acquire_images()
 
     def run_gui(self):
         master = tk.Tk()
-        master.title("grid() method")
+        master.title("GAP Kamera Kayıt")
         master.geometry("500x300")
         master.minsize(500, 300)
 
@@ -198,12 +172,6 @@ class CamGUI(object):
         btn_stop = Button(master, text="Kaydı Durdur",
                           command=self.stop_recording_callback)
         btn_stop.grid(row=2, column=0)
-
-        # canvas = Canvas(master, width=300, height=300)
-        # canvas.grid(row=3, column=1)
-        # load = tk.Image("hata.jpg")
-        # render = ImageTk.PhotoImage(load)
-        # canvas.create_image(20, 20, image=render)
 
         master.mainloop()
 
