@@ -6,7 +6,6 @@ from tkinter import Button, messagebox
 import PySpin
 import imageio
 import numpy as np
-from skimage import transform
 
 save_folder = 'capture_image/'
 Capture_FPS = 5
@@ -43,18 +42,8 @@ class CamGUI(object):
 
     @staticmethod
     def save_img(image):
-        time_str = str(
-            datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
-        if image_bit == 16:
-            img_nd = image.Convert(PySpin.PixelFormat_Mono16).GetNDArray()
-        else:
-            img_nd = image.GetNDArray()
-        imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), (
-                transform.rescale(img_nd, 0.2, multichannel=False,
-                                  mode='constant', anti_aliasing=False,
-                                  preserve_range=False) * 255).round().astype(
-            np.uint8))
-        np.save('{}/{}'.format(save_folder, time_str), img_nd)
+        time_str = str(datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
+        imageio.imsave('{}/{}.jpg'.format(save_folder, time_str))
 
     def handle_close(self):
         self.continue_recording = True
