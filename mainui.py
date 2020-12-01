@@ -45,16 +45,12 @@ class CamGUI(object):
     def save_img(image):
         time_str = str(
             datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
-        if image_bit == 16:
-            img_nd = image.Convert(PySpin.PixelFormat_Mono16).GetNDArray()
-        else:
-            img_nd = image.GetNDArray()
         imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), (
-                transform.rescale(img_nd, 0.2, multichannel=False,
+                transform.rescale(image, 0.2, multichannel=False,
                                   mode='constant', anti_aliasing=False,
                                   preserve_range=False) * 255).round().astype(
             np.uint8))
-        np.save('{}/{}'.format(save_folder, time_str), img_nd)
+        np.save('{}/{}'.format(save_folder, time_str), image)
 
     def handle_close(self):
         self.continue_recording = True
