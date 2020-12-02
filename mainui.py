@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from datetime import datetime
 from tkinter import Button, messagebox
+import numpy as np
 import PySpin
 
 save_folder = 'capture_image/'
