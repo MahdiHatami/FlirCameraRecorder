@@ -45,7 +45,8 @@ class CamGUI(object):
         image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
         filename = '%s-%d.jpg' % (time_str, i)
         image_converted.Save(filename)
-        # imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), image)
+
+        image_result.Release()
 
     def handle_close(self):
         self.continue_recording = True
@@ -87,10 +88,14 @@ class CamGUI(object):
                     image_result = self.cam.GetNextImage(1000)
                     #  Ensure image completion
                     if not image_result.IsIncomplete():
-                        self.save_img(image_result, i)
-                        i += 1
+                        time_str = str(datetime.fromtimestamp(image_result.GetTimeStamp() / 1e6))
+                        image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
+                        filename = '%s-%d.jpg' % (time_str, i)
+                        image_converted.Save(filename)
 
-                    image_result.Release()
+                        image_result.Release()
+
+                        i += 1
 
                 except PySpin.SpinnakerException as ex:
                     print('Error: %s' % ex)
