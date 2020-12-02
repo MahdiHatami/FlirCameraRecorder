@@ -42,7 +42,7 @@ class CamGUI(object):
         time_str = str(datetime.fromtimestamp(image_result.GetTimeStamp() / 1e6))
         print(time_str)
         image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
-        filename = save_folder + '%s-%d.jpg' % (time_str, i)
+        filename = '%s-%d.jpg' % (time_str, i)
         image_converted.Save(filename)
         # imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), image)
 
