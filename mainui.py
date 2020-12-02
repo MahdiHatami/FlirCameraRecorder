@@ -2,10 +2,7 @@ import os
 import tkinter as tk
 from datetime import datetime
 from tkinter import Button, messagebox
-
 import PySpin
-import imageio
-import numpy as np
 
 save_folder = 'capture_image/'
 Capture_FPS = 5
@@ -41,9 +38,13 @@ class CamGUI(object):
             self.nodemap = self.cam.GetNodeMap()
 
     @staticmethod
-    def save_img(image):
-        time_str = str(datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
-        imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), image)
+    def save_img(image_result, i):
+        time_str = str(datetime.fromtimestamp(image_result.GetTimeStamp() / 1e6))
+        print(time_str)
+        image_converted = image_result.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
+        filename = save_folder + '%s-%d.jpg' % (time_str, i)
+        image_converted.Save(filename)
+        # imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), image)
 
     def handle_close(self):
         self.continue_recording = True
@@ -79,16 +80,14 @@ class CamGUI(object):
             self.cam.BeginAcquisition()
 
             # Retrieve and display images
+            i = 1
             while self.continue_recording:
                 try:
                     image_result = self.cam.GetNextImage(1000)
                     #  Ensure image completion
-                    if image_result.IsIncomplete():
-                        print(
-                            'Image incomplete with image status %d ...' %
-                            image_result.GetImageStatus())
-                    else:
-                        self.save_img(image_result)
+                    if not image_result.IsIncomplete():
+                        self.save_img(image_result, i)
+                        i += 1
 
                     image_result.Release()
 
