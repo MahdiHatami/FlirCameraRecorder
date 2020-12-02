@@ -43,7 +43,7 @@ class CamGUI(object):
     @staticmethod
     def save_img(image):
         time_str = str(datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
-        imageio.imsave('{}/{}.jpg'.format(save_folder, time_str))
+        imageio.imsave('{}/{}.jpg'.format(save_folder, time_str), image)
 
     def handle_close(self):
         self.continue_recording = True
