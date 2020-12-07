@@ -277,7 +277,7 @@ with Camera() as cam:
                                       text='Current Exposure Time = %.3f microseconds' % (cam.ExposureTime))
     Current_Exp_Micro.grid(row=5, column=0, sticky=tkinter.W)  # , columnspan=6)
     Current_Exp_Milli = tkinter.Label(master=settingsFrame, text='Current Exposure Time = %.3f milliseconds' % (
-                float(cam.ExposureTime) * 0.001))
+            float(cam.ExposureTime) * 0.001))
     Current_Exp_Milli.grid(row=6, column=0, sticky=tkinter.W)  # columnspan=6)
     Current_Exp_Sec = tkinter.Label(master=settingsFrame,
                                     text='Current Exposure Time = %.3f seconds' % (float(cam.ExposureTime) * 1e-6))

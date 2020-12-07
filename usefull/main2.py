@@ -4,7 +4,7 @@ from skimage import transform
 import matplotlib.pyplot as plt
 import os
 
-save_folder = '/capture_image/captured'
+save_folder = 'capture_image/captured'
 ExposureTime = 10  # in millisecond
 Capture_FPS = 5.  # Less than 10 FPS for 20MP camera at 12bit.
 Gain = 0.
