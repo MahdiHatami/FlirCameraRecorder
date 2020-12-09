@@ -1,4 +1,4 @@
-import tkinter
+import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
@@ -142,16 +142,18 @@ with Camera() as cam:
 
     cam.start()  # now start acquiring data with the camera
 
-    root = tkinter.Tk()  # set up the GUI
-    root.wm_title("AST301")
+    root = tk.Tk()  # set up the GUI
+    root.wm_title("GAP Kumaş Denetleme Uygulaması")
 
-    settingsFrame = tkinter.Frame(root)
+    tabControl = tk.Notebook(root)
+
+    settingsFrame = tk.Frame(root)
     settingsFrame.grid(row=0, column=0, padx=10, pady=5)
 
-    imageFrame = tkinter.Frame(root)
+    imageFrame = tk.Frame(root)
     imageFrame.grid(row=0, column=1, padx=10, pady=5)
 
-    cmapFrame = tkinter.Frame(root)
+    cmapFrame = tk.Frame(root)
     cmapFrame.grid(row=0, column=2, padx=10, pady=5)
 
     # set up the figure
@@ -256,74 +258,74 @@ with Camera() as cam:
         cmap = 'jet'
 
 
-    button_quit = tkinter.Button(master=root, text="Quit", command=_quit)
+    button_quit = tk.Button(master=root, text="Quit", command=_quit)
     button_quit.grid(row=13, column=0)
 
-    Gain_Label = tkinter.Label(master=settingsFrame, text='Gain: ', font=('TkDefaultFont', 14, 'bold'))
-    Gain_Label.grid(row=0, sticky=tkinter.W)
-    Gain_Entry = tkinter.Entry(master=settingsFrame)
+    Gain_Label = tk.Label(master=settingsFrame, text='Gain: ', font=('TkDefaultFont', 14, 'bold'))
+    Gain_Label.grid(row=0, sticky=tk.W)
+    Gain_Entry = tk.Entry(master=settingsFrame)
     Gain_Entry.bind("<Return>", update_gain)
     Gain_Entry.grid(row=1, column=0)
-    Current_Gain = tkinter.Label(master=settingsFrame, text='Current Gain = %.3f' % float(cam.Gain))
-    Current_Gain.grid(row=2, column=0, sticky=tkinter.W)
+    Current_Gain = tk.Label(master=settingsFrame, text='Current Gain = %.3f' % float(cam.Gain))
+    Current_Gain.grid(row=2, column=0, sticky=tk.W)
 
-    Exp_Label = tkinter.Label(master=settingsFrame, text='Exposure Time (microseconds): ',
+    Exp_Label = tk.Label(master=settingsFrame, text='Exposure Time (microseconds): ',
                               font=('TkDefaultFont', 14, 'bold'))
-    Exp_Label.grid(row=3, sticky=tkinter.W)
-    Exp_Entry = tkinter.Entry(master=settingsFrame)
+    Exp_Label.grid(row=3, sticky=tk.W)
+    Exp_Entry = tk.Entry(master=settingsFrame)
     Exp_Entry.bind("<Return>", update_exp)
     Exp_Entry.grid(row=4, column=0)
-    Current_Exp_Micro = tkinter.Label(master=settingsFrame,
+    Current_Exp_Micro = tk.Label(master=settingsFrame,
                                       text='Current Exposure Time = %.3f microseconds' % (cam.ExposureTime))
-    Current_Exp_Micro.grid(row=5, column=0, sticky=tkinter.W)  # , columnspan=6)
-    Current_Exp_Milli = tkinter.Label(master=settingsFrame, text='Current Exposure Time = %.3f milliseconds' % (
+    Current_Exp_Micro.grid(row=5, column=0, sticky=tk.W)  # , columnspan=6)
+    Current_Exp_Milli = tk.Label(master=settingsFrame, text='Current Exposure Time = %.3f milliseconds' % (
             float(cam.ExposureTime) * 0.001))
-    Current_Exp_Milli.grid(row=6, column=0, sticky=tkinter.W)  # columnspan=6)
-    Current_Exp_Sec = tkinter.Label(master=settingsFrame,
+    Current_Exp_Milli.grid(row=6, column=0, sticky=tk.W)  # columnspan=6)
+    Current_Exp_Sec = tk.Label(master=settingsFrame,
                                     text='Current Exposure Time = %.3f seconds' % (float(cam.ExposureTime) * 1e-6))
-    Current_Exp_Sec.grid(row=7, column=0, sticky=tkinter.W)  # , columnspan=6)
+    Current_Exp_Sec.grid(row=7, column=0, sticky=tk.W)  # , columnspan=6)
 
-    Sharp_Label = tkinter.Label(master=settingsFrame, text='Sharpness: ', font=('TkDefaultFont', 14, 'bold'))
-    Sharp_Label.grid(row=8, sticky=tkinter.W)
-    Sharp_Entry = tkinter.Entry(master=settingsFrame)
+    Sharp_Label = tk.Label(master=settingsFrame, text='Sharpness: ', font=('TkDefaultFont', 14, 'bold'))
+    Sharp_Label.grid(row=8, sticky=tk.W)
+    Sharp_Entry = tk.Entry(master=settingsFrame)
     Sharp_Entry.bind("<Return>", update_sharp)
     Sharp_Entry.grid(row=9, column=0)
-    Current_Sharp = tkinter.Label(master=settingsFrame, text='Current Sharpness = %.3f' % float(cam.Sharpness))
-    Current_Sharp.grid(row=10, column=0, sticky=tkinter.W)
+    Current_Sharp = tk.Label(master=settingsFrame, text='Current Sharpness = %.3f' % float(cam.Sharpness))
+    Current_Sharp.grid(row=10, column=0, sticky=tk.W)
 
-    button_live = tkinter.Button(master=imageFrame, text="Live Viewing Mode", command=_live)
+    button_live = tk.Button(master=imageFrame, text="Live Viewing Mode", command=_live)
     button_live.grid(row=11, column=6)
 
-    button_singleImage = tkinter.Button(master=imageFrame, text="Single Image Mode", command=_single)
+    button_singleImage = tk.Button(master=imageFrame, text="Single Image Mode", command=_single)
     button_singleImage.grid(row=11, column=7)
 
-    button_zoomIn = tkinter.Button(master=imageFrame, text='Zoom In', command=_zoomIn)
+    button_zoomIn = tk.Button(master=imageFrame, text='Zoom In', command=_zoomIn)
     button_zoomIn.grid(row=6, column=6)
 
-    button_zoomOut = tkinter.Button(master=imageFrame, text='Zoom Out', command=_zoomOut)
+    button_zoomOut = tk.Button(master=imageFrame, text='Zoom Out', command=_zoomOut)
     button_zoomOut.grid(row=6, column=7)
 
-    Save_Name = tkinter.Label(master=imageFrame, text='Save As: ')
+    Save_Name = tk.Label(master=imageFrame, text='Save As: ')
     Save_Name.grid(row=9, column=8)
-    Save_Entry = tkinter.Entry(master=imageFrame)
+    Save_Entry = tk.Entry(master=imageFrame)
     Save_Entry.bind("<Return>", update_savename)
     Save_Entry.grid(row=9, column=8)
-    button_saveSingle = tkinter.Button(master=imageFrame, text='Save Current Image', command=_save)
+    button_saveSingle = tk.Button(master=imageFrame, text='Save Current Image', command=_save)
     button_saveSingle.grid(row=11, column=8)
-    Save_Current = tkinter.Label(master=imageFrame, text='(%s.png)' % savename)
+    Save_Current = tk.Label(master=imageFrame, text='(%s.png)' % savename)
     Save_Current.grid(row=12, column=8)
 
-    CMapLabel = tkinter.Label(master=cmapFrame, text='Colour Scheme:')
+    CMapLabel = tk.Label(master=cmapFrame, text='Colour Scheme:')
     CMapLabel.grid(row=1, column=11)
-    button_greys = tkinter.Button(master=cmapFrame, text='Greys', fg='black', command=_cmapGreys)
+    button_greys = tk.Button(master=cmapFrame, text='Greys', fg='black', command=_cmapGreys)
     button_greys.grid(row=2, column=11)
-    button_inferno = tkinter.Button(master=cmapFrame, text='Inferno', fg='red', command=_cmapInferno)
+    button_inferno = tk.Button(master=cmapFrame, text='Inferno', fg='red', command=_cmapInferno)
     button_inferno.grid(row=3, column=11)
-    button_jet = tkinter.Button(master=cmapFrame, text='Jet', fg='blue', command=_cmapJet)
+    button_jet = tk.Button(master=cmapFrame, text='Jet', fg='blue', command=_cmapJet)
     button_jet.grid(row=4, column=11)
 
     # update_im()
-    tkinter.mainloop()
+    tk.mainloop()
 
     cam.stop()
 # If you put root.destroy() here, it will cause an error if the window is
