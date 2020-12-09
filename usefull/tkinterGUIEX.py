@@ -1,12 +1,30 @@
 import tkinter as tk
+from tkinter import scrolledtext
+from tkinter import ttk
+import sqlite3
+from PIL import ImageTk, Image
+import os
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
 from simple_pyspin import Camera
 from PIL import Image
 
-# create global parameters
-# global parameter for upate frequency of camera image in live view
+root = tk.Tk()
+root.title("GAP")
+
+tabcontrol = ttk.Notebook(root)
+
+InspectionFrame = ttk.Frame(tabcontrol)
+ExaminationFrame = ttk.Frame(tabcontrol)
+
+tabcontrol.add(InspectionFrame, text='Hata Tespit Sistemi')
+tabcontrol.pack(expand=1, fill="both")
+
+tabcontrol.add(ExaminationFrame, text="Kayıt İnceleme")
+tabcontrol.pack(expand=1, fill="both")
+
+# ******************************** Inspection Panel *************************************
 global update_freq
 update_freq = 50  # milliseconds
 
@@ -145,8 +163,8 @@ with Camera() as cam:
     root = tk.Tk()  # set up the GUI
     root.wm_title("GAP Kumaş Denetleme Uygulaması")
 
-    settingsFrame = tk.Frame(root)
-    settingsFrame.grid(row=0, column=0, padx=10, pady=5)
+    InspectionFrame = tk.Frame(root)
+    InspectionFrame.grid(row=0, column=0, padx=10, pady=5)
 
     imageFrame = tk.Frame(root)
     imageFrame.grid(row=0, column=1, padx=10, pady=5)
@@ -256,75 +274,63 @@ with Camera() as cam:
         cmap = 'jet'
 
 
-    button_quit = tk.Button(master=root, text="Quit", command=_quit)
-    button_quit.grid(row=13, column=0)
+Gain_Label = tk.Label(master=InspectionFrame, text='Gain: ', font=('TkDefaultFont', 14, 'bold'))
+Gain_Label.grid(row=0, sticky=tk.W)
+Gain_Entry = tk.Entry(master=InspectionFrame)
+Gain_Entry.bind("<Return>", update_gain)
+Gain_Entry.grid(row=1, column=0)
+Current_Gain = tk.Label(master=InspectionFrame, text='Current Gain = %.3f' % float(cam.Gain))
+Current_Gain.grid(row=2, column=0, sticky=tk.W)
 
-    Gain_Label = tk.Label(master=settingsFrame, text='Gain: ', font=('TkDefaultFont', 14, 'bold'))
-    Gain_Label.grid(row=0, sticky=tk.W)
-    Gain_Entry = tk.Entry(master=settingsFrame)
-    Gain_Entry.bind("<Return>", update_gain)
-    Gain_Entry.grid(row=1, column=0)
-    Current_Gain = tk.Label(master=settingsFrame, text='Current Gain = %.3f' % float(cam.Gain))
-    Current_Gain.grid(row=2, column=0, sticky=tk.W)
+Exp_Label = tk.Label(master=InspectionFrame, text='Exposure Time (microseconds): ',
+                     font=('TkDefaultFont', 14, 'bold'))
+Exp_Label.grid(row=3, sticky=tk.W)
+Exp_Entry = tk.Entry(master=InspectionFrame)
+Exp_Entry.bind("<Return>", update_exp)
+Exp_Entry.grid(row=4, column=0)
+Current_Exp_Micro = tk.Label(master=InspectionFrame,
+                             text='Current Exposure Time = %.3f microseconds' % (cam.ExposureTime))
+Current_Exp_Micro.grid(row=5, column=0, sticky=tk.W)  # , columnspan=6)
+Current_Exp_Milli = tk.Label(master=InspectionFrame, text='Current Exposure Time = %.3f milliseconds' % (
+        float(cam.ExposureTime) * 0.001))
+Current_Exp_Milli.grid(row=6, column=0, sticky=tk.W)  # columnspan=6)
+Current_Exp_Sec = tk.Label(master=InspectionFrame,
+                           text='Current Exposure Time = %.3f seconds' % (float(cam.ExposureTime) * 1e-6))
+Current_Exp_Sec.grid(row=7, column=0, sticky=tk.W)  # , columnspan=6)
 
-    Exp_Label = tk.Label(master=settingsFrame, text='Exposure Time (microseconds): ',
-                              font=('TkDefaultFont', 14, 'bold'))
-    Exp_Label.grid(row=3, sticky=tk.W)
-    Exp_Entry = tk.Entry(master=settingsFrame)
-    Exp_Entry.bind("<Return>", update_exp)
-    Exp_Entry.grid(row=4, column=0)
-    Current_Exp_Micro = tk.Label(master=settingsFrame,
-                                      text='Current Exposure Time = %.3f microseconds' % (cam.ExposureTime))
-    Current_Exp_Micro.grid(row=5, column=0, sticky=tk.W)  # , columnspan=6)
-    Current_Exp_Milli = tk.Label(master=settingsFrame, text='Current Exposure Time = %.3f milliseconds' % (
-            float(cam.ExposureTime) * 0.001))
-    Current_Exp_Milli.grid(row=6, column=0, sticky=tk.W)  # columnspan=6)
-    Current_Exp_Sec = tk.Label(master=settingsFrame,
-                                    text='Current Exposure Time = %.3f seconds' % (float(cam.ExposureTime) * 1e-6))
-    Current_Exp_Sec.grid(row=7, column=0, sticky=tk.W)  # , columnspan=6)
+Sharp_Label = tk.Label(master=InspectionFrame, text='Sharpness: ', font=('TkDefaultFont', 14, 'bold'))
+Sharp_Label.grid(row=8, sticky=tk.W)
+Sharp_Entry = tk.Entry(master=InspectionFrame)
+Sharp_Entry.bind("<Return>", update_sharp)
+Sharp_Entry.grid(row=9, column=0)
+Current_Sharp = tk.Label(master=InspectionFrame, text='Current Sharpness = %.3f' % float(cam.Sharpness))
+Current_Sharp.grid(row=10, column=0, sticky=tk.W)
 
-    Sharp_Label = tk.Label(master=settingsFrame, text='Sharpness: ', font=('TkDefaultFont', 14, 'bold'))
-    Sharp_Label.grid(row=8, sticky=tk.W)
-    Sharp_Entry = tk.Entry(master=settingsFrame)
-    Sharp_Entry.bind("<Return>", update_sharp)
-    Sharp_Entry.grid(row=9, column=0)
-    Current_Sharp = tk.Label(master=settingsFrame, text='Current Sharpness = %.3f' % float(cam.Sharpness))
-    Current_Sharp.grid(row=10, column=0, sticky=tk.W)
+# image
+button_live = tk.Button(master=InspectionFrame, text="Live Viewing Mode", command=_live)
+button_live.grid(row=11, column=6)
 
-    button_live = tk.Button(master=imageFrame, text="Live Viewing Mode", command=_live)
-    button_live.grid(row=11, column=6)
+button_singleImage = tk.Button(master=InspectionFrame, text="Single Image Mode", command=_single)
+button_singleImage.grid(row=11, column=7)
 
-    button_singleImage = tk.Button(master=imageFrame, text="Single Image Mode", command=_single)
-    button_singleImage.grid(row=11, column=7)
+button_zoomIn = tk.Button(master=InspectionFrame, text='Zoom In', command=_zoomIn)
+button_zoomIn.grid(row=6, column=6)
 
-    button_zoomIn = tk.Button(master=imageFrame, text='Zoom In', command=_zoomIn)
-    button_zoomIn.grid(row=6, column=6)
+button_zoomOut = tk.Button(master=InspectionFrame, text='Zoom Out', command=_zoomOut)
+button_zoomOut.grid(row=6, column=7)
 
-    button_zoomOut = tk.Button(master=imageFrame, text='Zoom Out', command=_zoomOut)
-    button_zoomOut.grid(row=6, column=7)
+Save_Name = tk.Label(master=InspectionFrame, text='Save As: ')
+Save_Name.grid(row=9, column=8)
+Save_Entry = tk.Entry(master=InspectionFrame)
+Save_Entry.bind("<Return>", update_savename)
+Save_Entry.grid(row=9, column=8)
+button_saveSingle = tk.Button(master=InspectionFrame, text='Save Current Image', command=_save)
+button_saveSingle.grid(row=11, column=8)
+Save_Current = tk.Label(master=InspectionFrame, text='(%s.png)' % savename)
+Save_Current.grid(row=12, column=8)
 
-    Save_Name = tk.Label(master=imageFrame, text='Save As: ')
-    Save_Name.grid(row=9, column=8)
-    Save_Entry = tk.Entry(master=imageFrame)
-    Save_Entry.bind("<Return>", update_savename)
-    Save_Entry.grid(row=9, column=8)
-    button_saveSingle = tk.Button(master=imageFrame, text='Save Current Image', command=_save)
-    button_saveSingle.grid(row=11, column=8)
-    Save_Current = tk.Label(master=imageFrame, text='(%s.png)' % savename)
-    Save_Current.grid(row=12, column=8)
+# ******************************** Examination Panel *************************************
+productName = ttk.Label(ExaminationFrame, text="Kayit bak: ")
+productName.grid(column=0, row=2, sticky='W')
 
-    CMapLabel = tk.Label(master=cmapFrame, text='Colour Scheme:')
-    CMapLabel.grid(row=1, column=11)
-    button_greys = tk.Button(master=cmapFrame, text='Greys', fg='black', command=_cmapGreys)
-    button_greys.grid(row=2, column=11)
-    button_inferno = tk.Button(master=cmapFrame, text='Inferno', fg='red', command=_cmapInferno)
-    button_inferno.grid(row=3, column=11)
-    button_jet = tk.Button(master=cmapFrame, text='Jet', fg='blue', command=_cmapJet)
-    button_jet.grid(row=4, column=11)
-
-    # update_im()
-    tk.mainloop()
-
-    cam.stop()
-# If you put root.destroy() here, it will cause an error if the window is
-# closed with the window manager.
+root.mainloop()
