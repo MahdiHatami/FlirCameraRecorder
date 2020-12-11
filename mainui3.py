@@ -17,9 +17,6 @@ running = True
 global savename
 savename = 'image'
 
-global cmap
-cmap = 'Greys_r'
-
 global image
 image = np.zeros((964, 1288))
 
@@ -94,7 +91,6 @@ with Camera() as cam:
             # global image
             # image = root.image
             im.set_data(image)
-            im.set_cmap(cmap)
             canvas.draw()
             root.after(update_freq, update_im)  # this is units of milliseconds
 
@@ -151,8 +147,6 @@ with Camera() as cam:
     imageFrame = tk.Frame(root)
     imageFrame.grid(row=0, column=1, padx=10, pady=5)
 
-    cmapFrame = tk.Frame(root)
-    cmapFrame.grid(row=0, column=2, padx=10, pady=5)
 
     # set up the figure
     fig = Figure()
@@ -162,8 +156,7 @@ with Camera() as cam:
 
     # global image
     image = cam.get_array()
-    im = ax.imshow(image, vmin=0, vmax=255,
-                   cmap=cmap)  # by default, we start showing the first image the camera was looking at
+    im = ax.imshow(image, vmin=0, vmax=255)  # by default, we start showing the first image the camera was looking at
 
     canvas = FigureCanvasTkAgg(fig, master=imageFrame)  # A tk.DrawingArea.
     canvas.draw()
@@ -210,7 +203,6 @@ with Camera() as cam:
         if zoomMode:
             image = image[422:542, 563:724]
         im.set_data(image)  # sets view to current image
-        im.set_cmap(cmap)
         canvas.draw()
         cam.stop()  # stop acquiring data while displaying a single image
 
@@ -241,21 +233,6 @@ with Camera() as cam:
         save_im.save(savename + '.png')
 
 
-    def _cmapGreys():
-        global cmap
-        cmap = 'Greys_r'
-
-
-    def _cmapInferno():
-        global cmap
-        cmap = 'inferno'
-
-
-    def _cmapJet():
-        global cmap
-        cmap = 'jet'
-
-
     button_quit = tk.Button(master=root, text="Quit", command=_quit)
     button_quit.grid(row=13, column=0)
 
@@ -268,19 +245,19 @@ with Camera() as cam:
     Current_Gain.grid(row=2, column=0, sticky=tk.W)
 
     Exp_Label = tk.Label(master=settingsFrame, text='Exposure Time (microseconds): ',
-                              font=('TkDefaultFont', 14, 'bold'))
+                         font=('TkDefaultFont', 14, 'bold'))
     Exp_Label.grid(row=3, sticky=tk.W)
     Exp_Entry = tk.Entry(master=settingsFrame)
     Exp_Entry.bind("<Return>", update_exp)
     Exp_Entry.grid(row=4, column=0)
     Current_Exp_Micro = tk.Label(master=settingsFrame,
-                                      text='Current Exposure Time = %.3f microseconds' % (cam.ExposureTime))
+                                 text='Current Exposure Time = %.3f microseconds' % (cam.ExposureTime))
     Current_Exp_Micro.grid(row=5, column=0, sticky=tk.W)  # , columnspan=6)
     Current_Exp_Milli = tk.Label(master=settingsFrame, text='Current Exposure Time = %.3f milliseconds' % (
             float(cam.ExposureTime) * 0.001))
     Current_Exp_Milli.grid(row=6, column=0, sticky=tk.W)  # columnspan=6)
     Current_Exp_Sec = tk.Label(master=settingsFrame,
-                                    text='Current Exposure Time = %.3f seconds' % (float(cam.ExposureTime) * 1e-6))
+                               text='Current Exposure Time = %.3f seconds' % (float(cam.ExposureTime) * 1e-6))
     Current_Exp_Sec.grid(row=7, column=0, sticky=tk.W)  # , columnspan=6)
 
     Sharp_Label = tk.Label(master=settingsFrame, text='Sharpness: ', font=('TkDefaultFont', 14, 'bold'))
@@ -312,15 +289,6 @@ with Camera() as cam:
     button_saveSingle.grid(row=11, column=8)
     Save_Current = tk.Label(master=imageFrame, text='(%s.png)' % savename)
     Save_Current.grid(row=12, column=8)
-
-    CMapLabel = tk.Label(master=cmapFrame, text='Colour Scheme:')
-    CMapLabel.grid(row=1, column=11)
-    button_greys = tk.Button(master=cmapFrame, text='Greys', fg='black', command=_cmapGreys)
-    button_greys.grid(row=2, column=11)
-    button_inferno = tk.Button(master=cmapFrame, text='Inferno', fg='red', command=_cmapInferno)
-    button_inferno.grid(row=3, column=11)
-    button_jet = tk.Button(master=cmapFrame, text='Jet', fg='blue', command=_cmapJet)
-    button_jet.grid(row=4, column=11)
 
     # update_im()
     tk.mainloop()
