@@ -1,62 +1,145 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
+
 from matplotlib.figure import Figure
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from simple_pyspin import Camera
+
+global camera
+camera = None
+
+global detection
+detection = False
 
 global image
 image = np.zeros((960, 600))
 
+global update_freq
+update_freq = 50  # milliseconds
+
+# global parameter for camera acquisition
+global running
+running = True
+
 
 def update_exp():
-    """ A function to update the exposure time, and change the text in the GUI.
-    Currently, this will only actually do anything if you're not in live viewing mode.
-    """
-    # val = int(Exp_Entry.get())
-    # if val > 100000:
-    #     cam.AcquisitionFrameRateEnabled = False
-    # else:
-    #     cam.AcquisitionFrameRateEnabled = True  # if True, can uncomment the next two lines
-    #     cam.AcquisitionFrameRateAuto = 'Off'
-    #     cam.AcquisitionFrameRate = 8
-    #
-    # cam.ExposureTime = val
-    # Current_Exp_Micro.configure(text='Current Exposure Time = %.3f microseconds' % (cam.ExposureTime))
-    # Current_Exp_Milli.configure(
-    #     text='Current Exposure Time = %.3f milliseconds' % (float(cam.ExposureTime) * 0.001))
-    # Current_Exp_Sec.configure(text='Current Exposure Time = %.3f seconds' % (float(cam.ExposureTime) * 1e-6))
+    global camera
+    val = int(exposure_entry.get())
+    if val > 100000:
+        camera.AcquisitionFrameRateEnabled = False
+    else:
+        camera.AcquisitionFrameRateEnabled = True  # if True, can uncomment the next two lines
+        camera.AcquisitionFrameRateAuto = 'Off'
+        camera.AcquisitionFrameRate = 5
+
+    camera.ExposureTime = val
 
 
 def update_sharp():
-    """ A function to update the sharpness, and change the text in the GUI.
-    """
-    # val = int(Sharp_Entry.get())
-    # cam.Sharpness = val  ### add in functionality to prevent user from exceeding the max
-    # Current_Sharp.configure(text='Current Sharpness = %.3f' % float(cam.Sharpness))
+    camera.Sharpness = int(sharp_entry.get())
 
 
 def update_gain():
-    """ A function to update the camera gain, and change the text in the GUI.
-    """
-    # val = int(Gain_Entry.get())
-    # cam.Gain = min(val, cam.get_info('Gain')['max'])  # don't allow it to exceed the camera max of 24
-    # Current_Gain.configure(text='Current Gain = %.3f' % float(cam.Gain))
+    global camera
+    val = int(gain_entry.get())
+    camera.Gain = min(val, camera.get_info('Gain')['max'])  # don't allow it to exceed the camera max of 24
 
 
 def update_fps():
-    """ A function to update the camera fps
-    """
-    # cam.AcquisitionFrameRate = 8
-    # cam.pgrExposureCompensationAuto = 'Off'
-    # cam.pgrExposureCompensation = 1.5
+    camera.AcquisitionFrameRate = 8
+    camera.pgrExposureCompensationAuto = 'Off'
+    camera.pgrExposureCompensation = 1.5
+
+
+def init_camera():
+    with Camera() as cam:
+        cam.init()
+
+        cam.AcquisitionMode = 'Continuous'
+        cam.SharpnessEnabled = True
+        cam.SharpnessAuto = 'Off'
+        cam.Sharpness = 750
+        cam.ExposureAuto = 'Off'
+        cam.ExposureTime = 10000
+        cam.GainAuto = 'Off'
+        gain = min(0, cam.get_info('Gain')['max'])
+        cam.Gain = gain
+        cam.AcquisitionFrameRateEnabled = True
+        cam.AcquisitionFrameRateAuto = 'Off'
+        cam.AcquisitionFrameRate = 8
+        cam.pgrExposureCompensationAuto = 'Off'
+        cam.pgrExposureCompensation = 1.5
+        # Allow both long and short exposure times, without creating lag in live-viewing when  doing short.
+        if cam.ExposureTime > 100000:
+            cam.AcquisitionFrameRateEnabled = False  # if True, can uncomment the next two lines
+        else:
+            cam.AcquisitionFrameRateEnabled = True  # if True, can uncomment the next two lines
+            cam.AcquisitionFrameRateAuto = 'Off'
+            cam.AcquisitionFrameRate = 8
+
+        cam.pgrExposureCompensationAuto = 'Off'
+        cam.pgrExposureCompensation = 1.5
+        global camera
+        camera = cam
+
+
+def start_detection():
+    global detection
+    detection = True
+    start_recording()
+
+
+def start_recording():
+    global camera
+    try:
+        init_camera()
+    except:
+        messagebox.showinfo(title="Kamera", message="Kamera Bağlantısı bulunamadı.")
+
+    camera.start()  # start acquiring data
+
+    global running, update_freq
+    running = True
+    if running:
+        update_freq = 50
+        update_im()
+
+
+def predict_defect_image(image):
+    pass
+
+
+def save_image(image):
+    pass
+
+
+def update_im():
+    if running:
+        global image, camera, detection
+
+        # image = root.image
+        image = camera.get_array()
+
+        if detection:
+            predict_defect_image(image)
+        else:
+            save_image(image)
+
+        im = ax.imshow(image, vmin=0, vmax=255)
+        im.set_data(image)
+        canvas.draw()
+        root.after(update_freq, update_im)  # this is units of milliseconds
 
 
 # run camera for GUI
+
+
 # reset the parameters again, for safety
 
 root = tk.Tk()  # Create instance
 root.title('GAP Kumaş Hata Denetleme Sistemi')  # Add a title
-
 
 # ------------------------------------------------------------- Tabs
 tabControl = ttk.Notebook(root)  # Create Tab Control
@@ -97,12 +180,15 @@ sharp_entry.grid(row=3, column=1)
 sharp_entry.insert(0, 0)  # gain_entry.insert(0, cam.Gain)
 sharp_entry.bind("<Return>", update_sharp)
 
+start_record_button = ttk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
+start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
+
 # ------------------------------------------------------------- defect detection frame
 detection_frame = ttk.LabelFrame(tab1, text='Hata Tespiti')
 detection_frame.grid(row=1, column=0, padx=8, pady=4)
 
 # elements
-action = ttk.Button(detection_frame, text="Hata Tespitine Başla")
+action = ttk.Button(detection_frame, text="Hata Tespitine Başla", command=start_detection)
 action.grid(row=0, column=0, sticky='W')  # change column to 2
 
 # ------------------------------------------------------------- image frame
@@ -123,8 +209,6 @@ ax.set_yticks([])
 ax.set_xticks([])
 
 # global image
-# image = cam.get_array()
-im = ax.imshow(image, vmin=0, vmax=600)  # by default, we start showing the first image the camera was looking at
 canvas = FigureCanvasTkAgg(master=image_frame, figure=fig)  # A tk.DrawingArea.
 canvas.draw()
 canvas.get_tk_widget().grid(row=9, column=0, columnspan=6, rowspan=6)
