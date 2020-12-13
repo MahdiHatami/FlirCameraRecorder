@@ -1,12 +1,26 @@
+import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+from PIL import Image
+
+import PySpin
+import tensorflow as tf
+import time
 from datetime import datetime
 
 from matplotlib.figure import Figure
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from simple_pyspin import Camera
+
+fabric_speed = 10  # 10 mm/s
+defect_folder = ""
+save_folder = ""
+folder_sep = ""
+
+global timer
+timer = 1
 
 global camera
 camera = None
@@ -23,6 +37,39 @@ update_freq = 50  # milliseconds
 # global parameter for camera acquisition
 global running
 running = True
+
+global index
+index = 1
+
+global current_dir
+
+model = tf.keras.models.load_model('assets/network.h5')
+
+if os.name == 'posix':
+    defect_folder = "/Users/metis/Desktop/Hata"
+    save_folder = "/Users/metis/Desktop/Kayit"
+    folder_sep = "/"
+    if not os.path.exists(defect_folder):
+        os.makedirs(defect_folder)
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+else:
+    defect_folder = "C:\Hata"
+    save_folder = "C:\Kayit"
+    folder_sep = "\\"
+    if not os.path.exists(defect_folder):
+        os.makedirs(defect_folder)
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+
+sliced_pos = {
+    (0, 0, 320, 300),
+    (321, 0, 640, 300),
+    (641, 0, 960, 300),
+    (0, 300, 320, 600),
+    (321, 301, 641, 600),
+    (641, 301, 960, 600)
+}
 
 
 def update_exp():
@@ -86,6 +133,20 @@ def init_camera():
         camera = cam
 
 
+def update_clock():
+    global timer
+    timer_label_val.configure(text="$i " % timer)
+    fabric_produced_label_val.configure(text="%f metre" % 1)
+    root.after(1000, update_clock)
+
+
+def create_new_directory_with_current_time(path):
+    date_str = datetime.now().strftime("%d-%m-%Y %H-%M-%S")
+    destination = path + folder_sep + date_str
+    os.mkdir(destination)
+    return destination
+
+
 def start_detection():
     global detection
     detection = True
@@ -93,10 +154,13 @@ def start_detection():
 
 
 def start_recording():
+    timer_label_val.configure(text=time.strftime("%H:%M:%S"))
+
     global camera
     try:
         init_camera()
-    except:
+    except Exception as e:
+        print(e)
         messagebox.showinfo(title="Kamera", message="Kamera Bağlantısı bulunamadı.")
 
     camera.start()  # start acquiring data
@@ -108,50 +172,69 @@ def start_recording():
         update_im()
 
 
-def predict_defect_image(image):
+def to_array(img):
+    input_arr = tf.keras.preprocessing.image.img_to_array(img)
+    input_arr = np.array([input_arr])  # Convert single image to a batch.
+    return input_arr
+
+
+def predict_defect_image(img):
     # 1s -> 10mm
 
-    # 6 paracaya bol
+    # resize image to half
+    rimage = img.resize((960, 600))
 
-    # 6 goruntu icin predict
+    # 6 slice and predict
+    for pos in sliced_pos:
+        s_image = to_array(rimage.crop(pos))
 
-    # hataliyi kaydet
+        print(model.predict(s_image))
+        # hataliyi kaydet
+        save_image(s_image)
 
     # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
 
-    # tahiniHataKonum = tahminiHataZaman * 10mm
+    # tahminiHataKonum = tahminiHataZaman * 10mm
 
     # rapor icin veri kaydi
 
     # goruntuyu klasore kaydet
 
     # veri tabani kismi
-        # kumasin kayit baslangic saaati (timestamp)
-        # hata saati (timestamp)
-        # hatali goruntunun yolu
-        # onay (goruntu dogru bulmus mu)
-
-
-    pass
+    # kumasin kayit baslangic saaati (timestamp)
+    # hata saati (timestamp)
+    # hatali goruntunun yolu
+    # onay (goruntu dogru bulmus mu)
 
 
 def save_image(image):
-    # time_str = str(datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
-    # image_converted = image.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
-    # filename = '%s-%d.jpg' % (time_str, i)
-    pass
+    global index
+    time_str = str(datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
+    filename = '%s-%d.jpg' % (time_str, index)
+    full_path = current_dir + folder_sep + filename
+    save_im = Image.fromarray(image)
+    save_im.save(full_path + '.jpg')
+    index = index + 1
+
+
+def create_directory(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def update_im():
     if running:
-        global image, camera, detection
+        global image, camera, detection, current_dir
 
         # image = root.image
         image = camera.get_array()
 
         if detection:
+            current_dir = create_new_directory_with_current_time(defect_folder)
+            create_directory(defect_folder)
             predict_defect_image(image)
         else:
+            current_dir = create_new_directory_with_current_time(save_folder)
             save_image(image)
 
         im = ax.imshow(image, vmin=0, vmax=255)
@@ -223,11 +306,17 @@ image_frame = ttk.LabelFrame(tab1, text='Kamera Görüntüsü')
 image_frame.grid(row=0, column=1, padx=8, pady=4)
 
 # elements
-a = ttk.Label(image_frame, text='Geçen Süre: /')
-a.grid(row=0, column=0, sticky='W')
+timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: ')
+timer_label.grid(row=0, column=0)
 
-a = ttk.Label(image_frame, text='Üretilen Kumaş(metre): ')
-a.grid(row=0, column=1, sticky='W')
+timer_label_val = ttk.Label(image_frame)
+timer_label_val.grid(row=0, column=1)
+
+fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): ')
+fabric_produced_label.grid(row=1, column=0)
+
+fabric_produced_label_val = ttk.Label(image_frame, text='0')
+fabric_produced_label_val.grid(row=1, column=1)
 
 # set up the figure
 fig = Figure()
