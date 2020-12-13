@@ -158,10 +158,25 @@ def start_detection():
 
 
 def stop_detection():
+    enable_entries()
     global detection
     detection = False
     start_detection_button['state'] = tk.NORMAL
     stop_detection_button['state'] = tk.DISABLED
+
+
+def enable_entries():
+    fps_entry['state'] = tk.NORMAL
+    gain_entry['state'] = tk.NORMAL
+    exposure_entry['state'] = tk.NORMAL
+    sharp_entry['state'] = tk.NORMAL
+
+
+def disable_entries():
+    fps_entry['state'] = tk.DISABLED
+    gain_entry['state'] = tk.DISABLED
+    exposure_entry['state'] = tk.DISABLED
+    sharp_entry['state'] = tk.DISABLED
 
 
 def start_recording():
@@ -175,6 +190,7 @@ def start_recording():
         messagebox.showinfo(title="Kamera", message="Kamera Bağlantısı bulunamadı.")
 
     camera.start()  # start acquiring data
+    disable_entries()
 
     global running, update_freq
     running = True
@@ -184,6 +200,7 @@ def start_recording():
 
 
 def stop_recording():
+    enable_entries()
     start_record_button['state'] = tk.NORMAL
     stop_record_button['state'] = tk.DISABLED
 
