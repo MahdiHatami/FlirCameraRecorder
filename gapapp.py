@@ -1,16 +1,13 @@
 import os
 import tkinter as tk
+import numpy as np
+import tensorflow as tf
+import time
 from tkinter import ttk
 from tkinter import messagebox
 from PIL import Image
-
-import PySpin
-import tensorflow as tf
-import time
 from datetime import datetime
-
 from matplotlib.figure import Figure
-import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from simple_pyspin import Camera
 
@@ -19,29 +16,20 @@ defect_folder = ""
 save_folder = ""
 folder_sep = ""
 
-global timer
+global camera_fps, camera_gain, camera_exp, camera_sharp
+camera_fps = 5
+camera_gain = 15
+camera_exp = 10000
+camera_sharp = 2100
+
+global timer, camera, detection, image, update_freq, running, index, current_dir
 timer = 1
-
-global camera
 camera = None
-
-global detection
 detection = False
-
-global image
 image = np.zeros((960, 600))
-
-global update_freq
 update_freq = 50  # milliseconds
-
-# global parameter for camera acquisition
-global running
 running = True
-
-global index
 index = 1
-
-global current_dir
 
 model = tf.keras.models.load_model('assets/network.h5')
 
@@ -72,33 +60,44 @@ sliced_pos = {
 }
 
 
-def update_exp():
-    global camera
-    val = int(exposure_entry.get())
-    if val > 100000:
-        camera.AcquisitionFrameRateEnabled = False
-    else:
-        camera.AcquisitionFrameRateEnabled = True  # if True, can uncomment the next two lines
-        camera.AcquisitionFrameRateAuto = 'Off'
-        camera.AcquisitionFrameRate = 5
-
-    camera.ExposureTime = val
-
-
-def update_sharp():
-    camera.Sharpness = int(sharp_entry.get())
-
-
-def update_gain():
-    global camera
-    val = int(gain_entry.get())
-    camera.Gain = min(val, camera.get_info('Gain')['max'])  # don't allow it to exceed the camera max of 24
-
-
-def update_fps():
-    camera.AcquisitionFrameRate = 8
-    camera.pgrExposureCompensationAuto = 'Off'
-    camera.pgrExposureCompensation = 1.5
+# def update_exp():
+#     global camera, camera_exp
+#     val = int(exposure_entry.get())
+#     if val > 100000:
+#         camera.AcquisitionFrameRateEnabled = False
+#     else:
+#         camera.AcquisitionFrameRateEnabled = True  # if True, can uncomment the next two lines
+#         camera.AcquisitionFrameRateAuto = 'Off'
+#         camera.AcquisitionFrameRate = camera_fps
+#
+#     camera.ExposureTime = val
+#
+#     camera_exp = val
+#
+#
+# def update_sharp():
+#     global camera_sharp
+#     sharp = int(sharp_entry.get())
+#     camera.Sharpness = sharp
+#
+#     camera_sharp = sharp
+#
+#
+# def update_gain():
+#     global camera, camera_gain
+#     val = int(gain_entry.get())
+#     val = min(val, camera.get_info('Gain')['max'])  # don't allow it to exceed the camera max of 24
+#     camera.Gain = val
+#
+#     camera_gain = val
+#
+#
+# def update_fps():
+#     entry_fps = fps_entry.get()
+#     camera_fps = entry_fps
+#     camera.AcquisitionFrameRate = entry_fps
+#     camera.pgrExposureCompensationAuto = 'Off'
+#     camera.pgrExposureCompensation = 1.5
 
 
 def init_camera():
@@ -106,17 +105,22 @@ def init_camera():
         cam.init()
 
         cam.AcquisitionMode = 'Continuous'
+
         cam.SharpnessEnabled = True
         cam.SharpnessAuto = 'Off'
-        cam.Sharpness = 750
+        cam.Sharpness = sharp_entry.get()
+
         cam.ExposureAuto = 'Off'
-        cam.ExposureTime = 10000
+        cam.ExposureTime = exposure_entry.get()
+
         cam.GainAuto = 'Off'
         gain = min(0, cam.get_info('Gain')['max'])
         cam.Gain = gain
+
         cam.AcquisitionFrameRateEnabled = True
         cam.AcquisitionFrameRateAuto = 'Off'
-        cam.AcquisitionFrameRate = 8
+        cam.AcquisitionFrameRate = fps_entry.get()
+
         cam.pgrExposureCompensationAuto = 'Off'
         cam.pgrExposureCompensation = 1.5
         # Allow both long and short exposure times, without creating lag in live-viewing when  doing short.
@@ -125,7 +129,7 @@ def init_camera():
         else:
             cam.AcquisitionFrameRateEnabled = True  # if True, can uncomment the next two lines
             cam.AcquisitionFrameRateAuto = 'Off'
-            cam.AcquisitionFrameRate = 8
+            cam.AcquisitionFrameRate = fps_entry.get()
 
         cam.pgrExposureCompensationAuto = 'Off'
         cam.pgrExposureCompensation = 1.5
@@ -199,10 +203,9 @@ def predict_defect_image(img):
     # 6 slice and predict
     for pos in sliced_pos:
         s_image = to_array(rimage.crop(pos))
-
-        print(model.predict(s_image))
-        # hataliyi kaydet
-        save_image(s_image)
+        img_predict = model.predict(s_image)
+        print(img_predict)
+        save_image(s_image)  # save defect one
 
     # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
 
@@ -289,30 +292,26 @@ tk.Label(camera_spec_frame, text="Sharpness: ").grid(row=3)
 
 fps_entry = tk.Entry(camera_spec_frame, width=10)
 fps_entry.grid(row=0, column=1)
-fps_entry.insert(0, 0)  # gain_entry.insert(0, cam.Gain)
-fps_entry.bind("<Return>", update_fps)
+fps_entry.insert(0, camera_fps)  # gain_entry.insert(0, cam.Gain)
 
 gain_entry = tk.Entry(camera_spec_frame, width=10)
 gain_entry.grid(row=1, column=1)
-gain_entry.insert(0, 0)  # gain_entry.insert(0, cam.Gain)
-gain_entry.bind("<Return>", update_gain)
+gain_entry.insert(0, camera_gain)  # gain_entry.insert(0, cam.Gain)
 
 exposure_entry = tk.Entry(camera_spec_frame, width=10)
 exposure_entry.grid(row=2, column=1)
-exposure_entry.insert(0, 0)  # gain_entry.insert(0, cam.Gain)
-exposure_entry.bind("<Return>", update_exp)
+exposure_entry.insert(0, camera_exp)  # gain_entry.insert(0, cam.Gain)
 
 sharp_entry = tk.Entry(camera_spec_frame, width=10)
 sharp_entry.grid(row=3, column=1)
-sharp_entry.insert(0, 0)  # gain_entry.insert(0, cam.Gain)
-sharp_entry.bind("<Return>", update_sharp)
+sharp_entry.insert(0, camera_sharp)  # gain_entry.insert(0, cam.Gain)
 
 start_record_button = tk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
 start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
 
 stop_record_button = tk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
 stop_record_button['state'] = tk.DISABLED
-stop_record_button.grid(row=6, column=0,)  # change column to 2
+stop_record_button.grid(row=6, column=0, )  # change column to 2
 
 # ------------------------------------------------------------- defect detection frame
 detection_frame = ttk.LabelFrame(tab1, text='Hata Tespiti')
