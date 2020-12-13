@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
+from datetime import datetime
 
 from matplotlib.figure import Figure
 import numpy as np
@@ -108,10 +109,36 @@ def start_recording():
 
 
 def predict_defect_image(image):
+    # 1s -> 10mm
+
+    # 6 paracaya bol
+
+    # 6 goruntu icin predict
+
+    # hataliyi kaydet
+
+    # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
+
+    # tahiniHataKonum = tahminiHataZaman * 10mm
+
+    # rapor icin veri kaydi
+
+    # goruntuyu klasore kaydet
+
+    # veri tabani kismi
+        # kumasin kayit baslangic saaati (timestamp)
+        # hata saati (timestamp)
+        # hatali goruntunun yolu
+        # onay (goruntu dogru bulmus mu)
+
+
     pass
 
 
 def save_image(image):
+    # time_str = str(datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
+    # image_converted = image.Convert(PySpin.PixelFormat_Mono8, PySpin.HQ_LINEAR)
+    # filename = '%s-%d.jpg' % (time_str, i)
     pass
 
 
