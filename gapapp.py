@@ -307,24 +307,24 @@ sharp_entry.grid(row=3, column=1)
 sharp_entry.insert(0, 0)  # gain_entry.insert(0, cam.Gain)
 sharp_entry.bind("<Return>", update_sharp)
 
-start_record_button = ttk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
+start_record_button = tk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
 start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
 
-stop_record_button = ttk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
+stop_record_button = tk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
 stop_record_button['state'] = tk.DISABLED
-stop_record_button.grid(row=5, column=1, pady=10)  # change column to 2
+stop_record_button.grid(row=6, column=0,)  # change column to 2
 
 # ------------------------------------------------------------- defect detection frame
 detection_frame = ttk.LabelFrame(tab1, text='Hata Tespiti')
 detection_frame.grid(row=1, column=0, padx=8, pady=4)
 
 # elements
-start_detection_button = ttk.Button(detection_frame, text="Hata Tespitine Başla", command=start_detection)
-start_detection_button.grid(row=0, column=0, sticky='W')  # change column to 2
+start_detection_button = tk.Button(detection_frame, text="Hata Tespitine Başla", width=18, command=start_detection)
+start_detection_button.grid(row=0, column=0, pady=4)  # change column to 2
 
-stop_detection_button = ttk.Button(detection_frame, text="Hata Tespitini Durdur", command=stop_detection)
+stop_detection_button = tk.Button(detection_frame, text="Hata Tespitini Durdur", width=18, command=stop_detection)
 stop_detection_button['state'] = tk.DISABLED
-stop_detection_button.grid(row=1, column=0, sticky='W')  # change column to 2
+stop_detection_button.grid(row=1, column=0, pady=4)
 # ------------------------------------------------------------- image frame
 image_frame = ttk.LabelFrame(tab1, text='Kamera Görüntüsü')
 image_frame.grid(row=0, column=1, padx=8, pady=4)
