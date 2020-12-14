@@ -40,9 +40,9 @@ if os.name == 'posix':
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 else:
-    defect_folder = "C:\Hata"
-    save_folder = "C:\Kayit"
-    folder_sep = "\\"
+    defect_folder = "C:/Hata"
+    save_folder = "C:/Kayit"
+    folder_sep = "/"
     if not os.path.exists(defect_folder):
         os.makedirs(defect_folder)
     if not os.path.exists(save_folder):
@@ -235,71 +235,71 @@ with Camera() as cam:
         stop_record_button['state'] = tk.DISABLED
 
 
-def update_im():
-    if running:
-        global image, detection, current_dir
+    def update_im():
+        if running:
+            global image, detection, current_dir
 
-        # image = root.image
-        image = cam.get_array()
+            # image = root.image
+            image = cam.get_array()
 
-        if detection:
-            predict_defect_image(image)
-        else:
-            save_image(image)
+            if detection:
+                predict_defect_image(image)
+            else:
+                save_image(image)
 
-        im = ax.imshow(image, vmin=0, vmax=255)
-        im.set_data(image)
-        canvas.draw()
-        root.after(update_freq, update_im)  # this is units of milliseconds
-
-
-def to_array(img):
-    input_arr = tf.keras.preprocessing.image.img_to_array(img)
-    input_arr = np.array([input_arr])  # Convert single image to a batch.
-    return input_arr
+            im = ax.imshow(image, vmin=0, vmax=255)
+            im.set_data(image)
+            canvas.draw()
+            root.after(update_freq, update_im)  # this is units of milliseconds
 
 
-def predict_defect_image(img):
-    # 1s -> 10mm
-
-    # resize image to half
-    rimage = img.resize((960, 600))
-
-    # 6 slice and predict
-    for pos in sliced_pos:
-        s_image = to_array(rimage.crop(pos))
-        # img_predict = model.predict(s_image)
-        # print(img_predict)
-        # save_image(s_image)  # save defect one
-
-    # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
-
-    # tahminiHataKonum = tahminiHataZaman * 10mm
-
-    # rapor icin veri kaydi
-
-    # goruntuyu klasore kaydet
-
-    # veri tabani kismi
-    # kumasin kayit baslangic saaati (timestamp)
-    # hata saati (timestamp)
-    # hatali goruntunun yolu
-    # onay (goruntu dogru bulmus mu)
+    def to_array(img):
+        input_arr = tf.keras.preprocessing.image.img_to_array(img)
+        input_arr = np.array([input_arr])  # Convert single image to a batch.
+        return input_arr
 
 
-def save_image(image):
-    global index
-    time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
-    filename = '%s-%d.jpg' % (time_str, index)
-    full_path = current_dir + "/" + filename
-    save_im = Image.fromarray(image)
-    save_im.save(full_path + '.jpg')
-    index = index + 1
+    def predict_defect_image(img):
+        # 1s -> 10mm
+
+        # resize image to half
+        rimage = img.resize((960, 600))
+
+        # 6 slice and predict
+        for pos in sliced_pos:
+            s_image = to_array(rimage.crop(pos))
+            # img_predict = model.predict(s_image)
+            # print(img_predict)
+            # save_image(s_image)  # save defect one
+
+        # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
+
+        # tahminiHataKonum = tahminiHataZaman * 10mm
+
+        # rapor icin veri kaydi
+
+        # goruntuyu klasore kaydet
+
+        # veri tabani kismi
+        # kumasin kayit baslangic saaati (timestamp)
+        # hata saati (timestamp)
+        # hatali goruntunun yolu
+        # onay (goruntu dogru bulmus mu)
 
 
-def create_directory(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+    def save_image(image):
+        global index
+        time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+        filename = '%s-%d.jpg' % (time_str, index)
+        full_path = current_dir + "/" + filename
+        save_im = Image.fromarray(image)
+        save_im.save(full_path + '.jpg')
+        index = index + 1
+
+
+    def create_directory(path):
+        if not os.path.exists(path):
+            os.makedirs(path)
 
 
 # ------------------------------------------------------------- camera spec frame
