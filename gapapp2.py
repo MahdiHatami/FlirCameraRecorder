@@ -206,8 +206,9 @@ with Camera() as cam:
 
 
     def stop_detection():
-        global detection
+        global detection, running
         detection = False
+        running = False
         enable_entries()
 
         start_detection_button['state'] = tk.NORMAL
@@ -247,7 +248,8 @@ with Camera() as cam:
 
     def stop_recording():
         enable_entries()
-
+        global running
+        running = False
         start_record_button['state'] = tk.NORMAL
         stop_record_button['state'] = tk.DISABLED
         start_detection_button['state'] = tk.NORMAL
