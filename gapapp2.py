@@ -213,7 +213,9 @@ with Camera() as cam:
 
 
     def start_recording():
-        global current_dir, running, update_freq
+        global current_dir, running, update_freq, detection
+
+        detection = False
 
         timer_label_val.configure(text=time.strftime("%H:%M:%S"))
 
