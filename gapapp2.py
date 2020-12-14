@@ -290,7 +290,7 @@ with Camera() as cam:
             s_image = to_array(rimage.crop(pos))
             # img_predict = model.predict(s_image)
             # print(img_predict)
-            # save_image(s_image)  # save defect one
+            save_image(s_image)  # save defect one
 
         # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
 
@@ -307,14 +307,19 @@ with Camera() as cam:
         # onay (goruntu dogru bulmus mu)
 
 
-    def save_image(image):
+    def save_image(img):
+        full_path = generate_file_name()
+        save_im = Image.fromarray(img)
+        save_im.save(full_path + '.jpg')
+
+
+    def generate_file_name():
         global index
         time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
         filename = '%s-%d.jpg' % (time_str, index)
         full_path = current_dir + "/" + filename
-        save_im = Image.fromarray(image)
-        save_im.save(full_path + '.jpg')
         index = index + 1
+        return full_path
 
 
     def create_directory(path):
