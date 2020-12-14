@@ -182,10 +182,12 @@ with Camera() as cam:
         global detection, current_dir, running, update_freq
         detection = True
 
-        current_dir = create_new_directory_with_current_time(save_folder)
+        current_dir = create_new_directory_with_current_time(defect_folder)
 
         start_detection_button['state'] = tk.DISABLED
         stop_detection_button['state'] = tk.NORMAL
+
+        start_record_button['state'] = tk.DISABLED
 
         disable_entries()
 
@@ -210,6 +212,7 @@ with Camera() as cam:
 
         start_detection_button['state'] = tk.NORMAL
         stop_detection_button['state'] = tk.DISABLED
+        start_record_button['state'] = tk.NORMAL
 
 
     def start_recording():
@@ -219,10 +222,11 @@ with Camera() as cam:
 
         timer_label_val.configure(text=time.strftime("%H:%M:%S"))
 
-        current_dir = create_new_directory_with_current_time(defect_folder)
+        current_dir = create_new_directory_with_current_time(save_folder)
 
         start_record_button['state'] = tk.DISABLED
         stop_record_button['state'] = tk.NORMAL
+        start_detection_button['state'] = tk.DISABLED
 
         disable_entries()
 
@@ -243,8 +247,10 @@ with Camera() as cam:
 
     def stop_recording():
         enable_entries()
+
         start_record_button['state'] = tk.NORMAL
         stop_record_button['state'] = tk.DISABLED
+        start_detection_button['state'] = tk.NORMAL
 
 
     def update_im():
