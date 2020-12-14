@@ -3,6 +3,8 @@ import os
 import tensorflow as tf
 from datetime import datetime
 import time
+
+from PySpin import PySpin
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
@@ -24,7 +26,7 @@ camera_sharp = 2100
 global timer, detection, image, update_freq, running, index, current_dir
 timer = 1
 detection = False
-image = np.zeros((960, 600))
+image = np.zeros((600, 960))
 update_freq = 50  # milliseconds
 running = True
 index = 1
@@ -56,6 +58,14 @@ sliced_pos = {
     (321, 301, 641, 600),
     (641, 301, 960, 600)
 }
+# sliced_pos2 = {
+#     [0:300, 0:320],
+#     [0:300, 321:640],
+#     [0:300, 641:960],
+#     [301:600, 0:320],
+#     [301:600, 321:640],
+#     [301:600, 641:960]
+# }
 
 # running camera through simple_pyspin wrapper for PySpin (in turn a wrapper for the Spinnaker C++ framework)
 
@@ -283,14 +293,25 @@ with Camera() as cam:
         # 1s -> 10mm
 
         # resize image to half
-        rimage = img.resize((960, 600))
+        im1 = img
+        rimage = np.resize(im1, (600, 960))
 
         # 6 slice and predict
-        for pos in sliced_pos:
-            s_image = to_array(rimage.crop(pos))
-            # img_predict = model.predict(s_image)
-            # print(img_predict)
-            save_image(s_image)  # save defect one
+        r1 = rimage[0:300, 0:320]
+        save_image(r1)  # save defect one
+        r2 = rimage[0:300, 321:640]
+        save_image(r2)  # save defect one
+        r3 = image[0:300, 641:960]
+        save_image(r3)  # save defect one
+        r4 = image[301:600, 0:320]
+        save_image(r4)  # save defect one
+        r5 = image[301:600, 321:640]
+        save_image(r5)  # save defect one
+        r6 = image[301:600, 641:960]
+        save_image(r6)  # save defect one
+
+        # img_predict = model.predict(s_image)
+        # print(img_predict)
 
         # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
 
