@@ -164,20 +164,6 @@ with Camera() as cam:
         return destination
 
 
-    def start_detection():
-        global detection
-        detection = True
-        start_recording()
-
-
-    def stop_detection():
-        enable_entries()
-        global detection
-        detection = False
-        start_detection_button['state'] = tk.NORMAL
-        stop_detection_button['state'] = tk.DISABLED
-
-
     def enable_entries():
         fps_entry['state'] = tk.NORMAL
         gain_entry['state'] = tk.NORMAL
@@ -192,8 +178,44 @@ with Camera() as cam:
         sharp_entry['state'] = tk.DISABLED
 
 
+    def start_detection():
+        global detection, current_dir
+        detection = True
+
+        current_dir = create_new_directory_with_current_time(save_folder)
+
+        start_detection_button['state'] = tk.DISABLED
+        stop_detection_button['state'] = tk.NORMAL
+
+        cam.stop()  # just in case
+        cam.AcquisitionMode = 'Continuous'  # set acquisition mode to continuous
+        cam.start()
+        disable_entries()
+
+        global running, update_freq
+        running = True
+        if running:
+            update_freq = 50
+            update_im()
+
+
+    def stop_detection():
+        global detection
+        detection = False
+        enable_entries()
+
+        start_detection_button['state'] = tk.NORMAL
+        stop_detection_button['state'] = tk.DISABLED
+
+
     def start_recording():
         timer_label_val.configure(text=time.strftime("%H:%M:%S"))
+
+        global current_dir
+        current_dir = create_new_directory_with_current_time(defect_folder)
+
+        start_record_button['state'] = tk.DISABLED
+        stop_record_button['state'] = tk.NORMAL
 
         cam.stop()  # just in case
         cam.AcquisitionMode = 'Continuous'  # set acquisition mode to continuous
@@ -213,136 +235,127 @@ with Camera() as cam:
         stop_record_button['state'] = tk.DISABLED
 
 
-    def to_array(img):
-        input_arr = tf.keras.preprocessing.image.img_to_array(img)
-        input_arr = np.array([input_arr])  # Convert single image to a batch.
-        return input_arr
+def update_im():
+    if running:
+        global image, detection, current_dir
+
+        # image = root.image
+        image = cam.get_array()
+
+        if detection:
+            predict_defect_image(image)
+        else:
+            save_image(image)
+
+        im = ax.imshow(image, vmin=0, vmax=255)
+        im.set_data(image)
+        canvas.draw()
+        root.after(update_freq, update_im)  # this is units of milliseconds
 
 
-    def predict_defect_image(img):
-        # 1s -> 10mm
-
-        # resize image to half
-        rimage = img.resize((960, 600))
-
-        # 6 slice and predict
-        for pos in sliced_pos:
-            s_image = to_array(rimage.crop(pos))
-            # img_predict = model.predict(s_image)
-            # print(img_predict)
-            # save_image(s_image)  # save defect one
-
-        # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
-
-        # tahminiHataKonum = tahminiHataZaman * 10mm
-
-        # rapor icin veri kaydi
-
-        # goruntuyu klasore kaydet
-
-        # veri tabani kismi
-        # kumasin kayit baslangic saaati (timestamp)
-        # hata saati (timestamp)
-        # hatali goruntunun yolu
-        # onay (goruntu dogru bulmus mu)
+def to_array(img):
+    input_arr = tf.keras.preprocessing.image.img_to_array(img)
+    input_arr = np.array([input_arr])  # Convert single image to a batch.
+    return input_arr
 
 
-    def save_image(image):
-        global index
-        time_str = str(datetime.fromtimestamp(image.GetTimeStamp() / 1e6))
-        filename = '%s-%d.jpg' % (time_str, index)
-        full_path = current_dir + folder_sep + filename
-        save_im = Image.fromarray(image)
-        save_im.save(full_path + '.jpg')
-        index = index + 1
+def predict_defect_image(img):
+    # 1s -> 10mm
+
+    # resize image to half
+    rimage = img.resize((960, 600))
+
+    # 6 slice and predict
+    for pos in sliced_pos:
+        s_image = to_array(rimage.crop(pos))
+        # img_predict = model.predict(s_image)
+        # print(img_predict)
+        # save_image(s_image)  # save defect one
+
+    # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
+
+    # tahminiHataKonum = tahminiHataZaman * 10mm
+
+    # rapor icin veri kaydi
+
+    # goruntuyu klasore kaydet
+
+    # veri tabani kismi
+    # kumasin kayit baslangic saaati (timestamp)
+    # hata saati (timestamp)
+    # hatali goruntunun yolu
+    # onay (goruntu dogru bulmus mu)
 
 
-    def create_directory(path):
-        if not os.path.exists(path):
-            os.makedirs(path)
+def save_image(image):
+    global index
+    time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+    filename = '%s-%d.jpg' % (time_str, index)
+    full_path = current_dir + "/" + filename
+    save_im = Image.fromarray(image)
+    save_im.save(full_path + '.jpg')
+    index = index + 1
 
 
-    def update_im():
-        if running:
-            global image, detection, current_dir
-
-            # image = root.image
-            image = cam.get_array()
-
-            if detection:
-                current_dir = create_new_directory_with_current_time(defect_folder)
-                create_directory(defect_folder)
-                predict_defect_image(image)
-                start_detection_button['state'] = tk.DISABLED
-                stop_detection_button['state'] = tk.NORMAL
-
-            else:
-                current_dir = create_new_directory_with_current_time(save_folder)
-                start_record_button['state'] = tk.DISABLED
-                stop_record_button['state'] = tk.NORMAL
-
-                save_image(image)
-
-            im = ax.imshow(image, vmin=0, vmax=255)
-            im.set_data(image)
-            canvas.draw()
-            root.after(update_freq, update_im)  # this is units of milliseconds
+def create_directory(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
-    # ------------------------------------------------------------- camera spec frame
-    tk.Label(camera_spec_frame, text="Fps: ").grid(row=0)
-    tk.Label(camera_spec_frame, text="Gain: ").grid(row=1)
-    tk.Label(camera_spec_frame, text="Exposure: ").grid(row=2)
-    tk.Label(camera_spec_frame, text="Sharpness: ").grid(row=3)
+# ------------------------------------------------------------- camera spec frame
+tk.Label(camera_spec_frame, text="Fps: ").grid(row=0)
+tk.Label(camera_spec_frame, text="Gain: ").grid(row=1)
+tk.Label(camera_spec_frame, text="Exposure: ").grid(row=2)
+tk.Label(camera_spec_frame, text="Sharpness: ").grid(row=3)
 
-    fps_entry = tk.Entry(camera_spec_frame, width=10)
-    fps_entry.grid(row=0, column=1)
-    fps_entry.insert(0, camera_fps)  # gain_entry.insert(0, cam.Gain)
+fps_entry = tk.Entry(camera_spec_frame, width=10)
+fps_entry.grid(row=0, column=1)
+fps_entry.insert(0, camera_fps)  # gain_entry.insert(0, cam.Gain)
 
-    gain_entry = tk.Entry(camera_spec_frame, width=10)
-    gain_entry.grid(row=1, column=1)
-    gain_entry.insert(0, camera_gain)  # gain_entry.insert(0, cam.Gain)
+gain_entry = tk.Entry(camera_spec_frame, width=10)
+gain_entry.grid(row=1, column=1)
+gain_entry.insert(0, camera_gain)  # gain_entry.insert(0, cam.Gain)
 
-    exposure_entry = tk.Entry(camera_spec_frame, width=10)
-    exposure_entry.grid(row=2, column=1)
-    exposure_entry.insert(0, camera_exp)  # gain_entry.insert(0, cam.Gain)
+exposure_entry = tk.Entry(camera_spec_frame, width=10)
+exposure_entry.grid(row=2, column=1)
+exposure_entry.insert(0, camera_exp)  # gain_entry.insert(0, cam.Gain)
 
-    sharp_entry = tk.Entry(camera_spec_frame, width=10)
-    sharp_entry.grid(row=3, column=1)
-    sharp_entry.insert(0, camera_sharp)  # gain_entry.insert(0, cam.Gain)
+sharp_entry = tk.Entry(camera_spec_frame, width=10)
+sharp_entry.grid(row=3, column=1)
+sharp_entry.insert(0, camera_sharp)  # gain_entry.insert(0, cam.Gain)
 
-    start_record_button = tk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
-    start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
+start_record_button = tk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
+start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
 
-    stop_record_button = tk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
-    stop_record_button['state'] = tk.DISABLED
-    stop_record_button.grid(row=6, column=0, )  # change column to 2
+stop_record_button = tk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
+stop_record_button['state'] = tk.DISABLED
+stop_record_button.grid(row=6, column=0, )  # change column to 2
 
-    # ------------------------------------------------------------- defect detection frame
-    # elements
-    start_detection_button = tk.Button(detection_frame, text="Hata Tespitine Başla", width=18, command=start_detection)
-    start_detection_button.grid(row=0, column=0, pady=4)  # change column to 2
+# ------------------------------------------------------------- defect detection frame
+# elements
+start_detection_button = tk.Button(detection_frame, text="Hata Tespitine Başla", width=18, command=start_detection)
+start_detection_button.grid(row=0, column=0, pady=4)  # change column to 2
 
-    stop_detection_button = tk.Button(detection_frame, text="Hata Tespitini Durdur", width=18, command=stop_detection)
-    stop_detection_button['state'] = tk.DISABLED
-    stop_detection_button.grid(row=1, column=0, pady=4)
-    # ------------------------------------------------------------- image frame
-    # elements
-    timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: ')
-    timer_label.grid(row=0, column=0)
+stop_detection_button = tk.Button(detection_frame, text="Hata Tespitini Durdur", width=18, command=stop_detection)
+stop_detection_button['state'] = tk.DISABLED
+stop_detection_button.grid(row=1, column=0, pady=4)
+# ------------------------------------------------------------- image frame
+# elements
+timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: ')
+timer_label.grid(row=0, column=0)
 
-    timer_label_val = ttk.Label(image_frame)
-    timer_label_val.grid(row=0, column=1)
+timer_label_val = ttk.Label(image_frame)
+timer_label_val.grid(row=0, column=1)
 
-    fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): ')
-    fabric_produced_label.grid(row=1, column=0)
+fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): ')
+fabric_produced_label.grid(row=1, column=0)
 
-    fabric_produced_label_val = ttk.Label(image_frame, text='1')
-    fabric_produced_label_val.grid(row=1, column=1)
+fabric_produced_label_val = ttk.Label(image_frame, text='1')
+fabric_produced_label_val.grid(row=1, column=1)
 
-    # update_im()
-    tk.mainloop()
+# update_im()
+tk.mainloop()
 
-    cam.stop()
+cam.stop()
 # If you put root.destroy() here, it will cause an error if the window is
 # closed with the window manager.
