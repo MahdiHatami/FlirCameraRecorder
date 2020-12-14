@@ -179,7 +179,7 @@ with Camera() as cam:
 
 
     def start_detection():
-        global detection, current_dir
+        global detection, current_dir, running, update_freq
         detection = True
 
         current_dir = create_new_directory_with_current_time(save_folder)
@@ -187,16 +187,20 @@ with Camera() as cam:
         start_detection_button['state'] = tk.DISABLED
         stop_detection_button['state'] = tk.NORMAL
 
+        disable_entries()
+
         cam.stop()  # just in case
         cam.AcquisitionMode = 'Continuous'  # set acquisition mode to continuous
         cam.start()
-        disable_entries()
 
-        global running, update_freq
+        val = cam.ExposureTime
+        cam.ExposureTime = val  # we force set an exposure time. If not, the update may be buggy
+        # cam.ExposureTime = 10000 # we force set an exposure time. If not, the update may be buggy
+
         running = True
-        if running:
-            update_freq = 50
-            update_im()
+        cam.AcquisitionMode = 'Continuous'
+        update_freq = 50
+        update_im()
 
 
     def stop_detection():
@@ -209,24 +213,30 @@ with Camera() as cam:
 
 
     def start_recording():
+        global current_dir, running, update_freq
+
         timer_label_val.configure(text=time.strftime("%H:%M:%S"))
 
-        global current_dir
         current_dir = create_new_directory_with_current_time(defect_folder)
 
         start_record_button['state'] = tk.DISABLED
         stop_record_button['state'] = tk.NORMAL
 
+        disable_entries()
+
         cam.stop()  # just in case
         cam.AcquisitionMode = 'Continuous'  # set acquisition mode to continuous
         cam.start()
-        disable_entries()
 
-        global running, update_freq
+        val = cam.ExposureTime
+        # print(val)
+        cam.ExposureTime = val  # we force set an exposure time. If not, the update may be buggy
+        # cam.ExposureTime = 10000 # we force set an exposure time. If not, the update may be buggy
+
         running = True
-        if running:
-            update_freq = 50
-            update_im()
+        cam.AcquisitionMode = 'Continuous'
+        update_freq = 50
+        update_im()
 
 
     def stop_recording():
@@ -302,60 +312,60 @@ with Camera() as cam:
             os.makedirs(path)
 
 
-# ------------------------------------------------------------- camera spec frame
-tk.Label(camera_spec_frame, text="Fps: ").grid(row=0)
-tk.Label(camera_spec_frame, text="Gain: ").grid(row=1)
-tk.Label(camera_spec_frame, text="Exposure: ").grid(row=2)
-tk.Label(camera_spec_frame, text="Sharpness: ").grid(row=3)
+    # ------------------------------------------------------------- camera spec frame
+    tk.Label(camera_spec_frame, text="Fps: ").grid(row=0)
+    tk.Label(camera_spec_frame, text="Gain: ").grid(row=1)
+    tk.Label(camera_spec_frame, text="Exposure: ").grid(row=2)
+    tk.Label(camera_spec_frame, text="Sharpness: ").grid(row=3)
 
-fps_entry = tk.Entry(camera_spec_frame, width=10)
-fps_entry.grid(row=0, column=1)
-fps_entry.insert(0, camera_fps)  # gain_entry.insert(0, cam.Gain)
+    fps_entry = tk.Entry(camera_spec_frame, width=10)
+    fps_entry.grid(row=0, column=1)
+    fps_entry.insert(0, camera_fps)  # gain_entry.insert(0, cam.Gain)
 
-gain_entry = tk.Entry(camera_spec_frame, width=10)
-gain_entry.grid(row=1, column=1)
-gain_entry.insert(0, camera_gain)  # gain_entry.insert(0, cam.Gain)
+    gain_entry = tk.Entry(camera_spec_frame, width=10)
+    gain_entry.grid(row=1, column=1)
+    gain_entry.insert(0, camera_gain)  # gain_entry.insert(0, cam.Gain)
 
-exposure_entry = tk.Entry(camera_spec_frame, width=10)
-exposure_entry.grid(row=2, column=1)
-exposure_entry.insert(0, camera_exp)  # gain_entry.insert(0, cam.Gain)
+    exposure_entry = tk.Entry(camera_spec_frame, width=10)
+    exposure_entry.grid(row=2, column=1)
+    exposure_entry.insert(0, camera_exp)  # gain_entry.insert(0, cam.Gain)
 
-sharp_entry = tk.Entry(camera_spec_frame, width=10)
-sharp_entry.grid(row=3, column=1)
-sharp_entry.insert(0, camera_sharp)  # gain_entry.insert(0, cam.Gain)
+    sharp_entry = tk.Entry(camera_spec_frame, width=10)
+    sharp_entry.grid(row=3, column=1)
+    sharp_entry.insert(0, camera_sharp)  # gain_entry.insert(0, cam.Gain)
 
-start_record_button = tk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
-start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
+    start_record_button = tk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
+    start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
 
-stop_record_button = tk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
-stop_record_button['state'] = tk.DISABLED
-stop_record_button.grid(row=6, column=0, )  # change column to 2
+    stop_record_button = tk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
+    stop_record_button['state'] = tk.DISABLED
+    stop_record_button.grid(row=6, column=0, )  # change column to 2
 
-# ------------------------------------------------------------- defect detection frame
-# elements
-start_detection_button = tk.Button(detection_frame, text="Hata Tespitine Başla", width=18, command=start_detection)
-start_detection_button.grid(row=0, column=0, pady=4)  # change column to 2
+    # ------------------------------------------------------------- defect detection frame
+    # elements
+    start_detection_button = tk.Button(detection_frame, text="Hata Tespitine Başla", width=18, command=start_detection)
+    start_detection_button.grid(row=0, column=0, pady=4)  # change column to 2
 
-stop_detection_button = tk.Button(detection_frame, text="Hata Tespitini Durdur", width=18, command=stop_detection)
-stop_detection_button['state'] = tk.DISABLED
-stop_detection_button.grid(row=1, column=0, pady=4)
-# ------------------------------------------------------------- image frame
-# elements
-timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: ')
-timer_label.grid(row=0, column=0)
+    stop_detection_button = tk.Button(detection_frame, text="Hata Tespitini Durdur", width=18, command=stop_detection)
+    stop_detection_button['state'] = tk.DISABLED
+    stop_detection_button.grid(row=1, column=0, pady=4)
+    # ------------------------------------------------------------- image frame
+    # elements
+    timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: ')
+    timer_label.grid(row=0, column=0)
 
-timer_label_val = ttk.Label(image_frame)
-timer_label_val.grid(row=0, column=1)
+    timer_label_val = ttk.Label(image_frame)
+    timer_label_val.grid(row=0, column=1)
 
-fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): ')
-fabric_produced_label.grid(row=1, column=0)
+    fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): ')
+    fabric_produced_label.grid(row=1, column=0)
 
-fabric_produced_label_val = ttk.Label(image_frame, text='1')
-fabric_produced_label_val.grid(row=1, column=1)
+    fabric_produced_label_val = ttk.Label(image_frame, text='1')
+    fabric_produced_label_val.grid(row=1, column=1)
 
-# update_im()
-tk.mainloop()
+    # update_im()
+    tk.mainloop()
 
-cam.stop()
+    cam.stop()
 # If you put root.destroy() here, it will cause an error if the window is
 # closed with the window manager.
