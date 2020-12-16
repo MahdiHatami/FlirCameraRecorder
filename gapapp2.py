@@ -31,7 +31,8 @@ update_freq = 50  # milliseconds
 running = True
 index = 1
 
-model = tf.keras.models.load_model('assets/network.h5')
+model = tf.keras.models.load_model('assets/network3.h5')
+labels = ['hata1', 'hata2', 'saglam']
 
 if os.name == 'posix':
     defect_folder = "/Users/metis/Desktop/Hata"
@@ -289,6 +290,23 @@ with Camera() as cam:
         return input_arr
 
 
+    def extract_label(label_index):
+        return labels[label_index]
+
+
+    def predict(img):
+        img = img.reshape(-1, 320, 300, 1)
+        pred = model.predict(img)
+        top_prediction_index = np.argmax(pred)
+        predicted_label = extract_label(top_prediction_index)
+        # predictions = pred.tolist()[0]
+        # extracted_predictions = [{extract_label(i): "%.2f%%" % (x * 100)} for i, x in enumerate(predictions)]
+        # top_percent = "%.2f%%" % (predictions[top_prediction_index] * 100)
+        # print(top_percent)
+
+        return predicted_label
+
+
     def predict_defect_image(img):
         # 1s -> 10mm
 
@@ -298,20 +316,35 @@ with Camera() as cam:
 
         # 6 slice and predict
         r1 = rimage[0:300, 0:320]
+        pred_label = predict(r1)
+        if pred_label != labels[2]:
+            save_image(r1)
+
         save_image(r1)  # save defect one
         r2 = rimage[0:300, 321:640]
-        save_image(r2)  # save defect one
-        r3 = image[0:300, 641:960]
-        save_image(r3)  # save defect one
-        r4 = image[301:600, 0:320]
-        save_image(r4)  # save defect one
-        r5 = image[301:600, 321:640]
-        save_image(r5)  # save defect one
-        r6 = image[301:600, 641:960]
-        save_image(r6)  # save defect one
+        pred_label = predict(r2)
+        if pred_label != labels[2]:
+            save_image(r2)
 
-        # img_predict = model.predict(s_image)
-        # print(img_predict)
+        r3 = image[0:300, 641:960]
+        pred_label = predict(r3)
+        if pred_label != labels[2]:
+            save_image(r3)
+
+        r4 = image[301:600, 0:320]
+        pred_label = predict(r4)
+        if pred_label != labels[2]:
+            save_image(r4)
+
+        r5 = image[301:600, 321:640]
+        pred_label = predict(r5)
+        if pred_label != labels[2]:
+            save_image(r5)
+
+        r6 = image[301:600, 641:960]
+        pred_label = predict(r6)
+        if pred_label != labels[2]:
+            save_image(r6)
 
         # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
 
