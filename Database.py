@@ -9,29 +9,29 @@ class Database:
         self.cur.execute(
             "CREATE TABLE IF NOT EXISTS defects "
             "(id INTEGER PRIMARY KEY, "
-            "created_date TEXT, "
+            "record_created_date timestamp, "
+            "defect_created_date timestamp, "
             "defect_type TEXT,"
             "image_path TEXT,"
+            "defect_location INTEGER,"
             "is_valid INTEGER)")
         self.conn.commit()
 
-    def fetch(self, hostname=''):
+    def fetch(self, defect_type):
         self.cur.execute(
             "SELECT id, datetime('created_date'), defect_type, image_path, is_valid;"
-            " FROM defects WHERE hostname LIKE ?", ('%' + hostname + '%',))
+            " FROM defects WHERE defect_type LIKE ?", ('%' + defect_type + '%',))
         rows = self.cur.fetchall()
         return rows
 
     def fetch_all(self):
-        self.cur.execute(
-            "SELECT id, datetime('created_date'), defect_type, image_path, is_valid;"
-            " FROM defects")
+        self.cur.execute("SELECT * FROM defects")
         rows = self.cur.fetchall()
         return rows
 
-    def insert(self, created_date, defect_type, image_path, is_valid):
-        self.cur.execute("INSERT INTO defects VALUES (NULL, ?, ?, ?, ?)",
-                         (datetime(created_date), defect_type, image_path, is_valid))
+    def insert(self, record_create_date, created_date, defect_type, image_path, defect_location, is_valid):
+        self.cur.execute("INSERT INTO defects VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                         (record_create_date, created_date, defect_type, image_path, defect_location, is_valid))
         self.conn.commit()
 
     def remove(self, id):
