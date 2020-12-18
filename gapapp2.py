@@ -16,6 +16,7 @@ from tkinter import ttk
 from Database import Database
 
 db_name = "gap"
+DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 fabric_speed = 8  # 10 mm/s
 defect_folder = ""
 save_folder = ""
@@ -315,6 +316,7 @@ with Camera() as cam:
         defect_time = datetime.now()
         passed_seconds = (defect_time - record_start_time).total_seconds()  # get how many seconds passed from start
         predict_location = (passed_seconds * fabric_speed) / 1000
+        predict_location = "{:.2f}".format(predict_location)
         db.insert(record_create_date=record_start_time,
                   created_date=defect_time,
                   defect_type=type,
@@ -460,14 +462,13 @@ with Camera() as cam:
     frame_query_view.grid(row=0, column=0, padx=8, pady=4)
     frame_query_view.pack(fill='both')
 
-    columns = ['id', 'tarih', 'Hata Türü', 'Görüntü']
+    columns = ['id', 'Kayıt Saati', 'Hata Saati', 'Hata Türü', 'Dosya Yolu', 'Hata Konumu']
     tree_view = ttk.Treeview(frame_query_view, columns=columns, show="headings")
     tree_view.column("id", width=30)
     for col in columns[1:]:
         tree_view.column(col, width=150)
         tree_view.heading(col, text=col)
     # router_tree_view.bind('<<TreeviewSelect>>', select_router)
-    tree_view.grid
     tree_view.pack(fill="both")
 
     scrollbar = Scrollbar(frame_query_view, orient='vertical')
