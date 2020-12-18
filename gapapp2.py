@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import *
 import os
 import tensorflow as tf
 from datetime import datetime
@@ -12,10 +13,15 @@ from simple_pyspin import Camera
 from PIL import Image
 from tkinter import ttk
 
-fabric_speed = 10  # 10 mm/s
+from Database import Database
+
+db_name = "gap"
+fabric_speed = 8  # 10 mm/s
 defect_folder = ""
 save_folder = ""
 folder_sep = ""
+
+db = Database(db_name)
 
 global camera_fps, camera_gain, camera_exp, camera_sharp
 camera_fps = 5
@@ -23,8 +29,7 @@ camera_gain = 15
 camera_exp = 10000
 camera_sharp = 2100
 
-global timer, detection, image, update_freq, running, index, current_dir
-timer = 1
+global record_start_time, detection, image, update_freq, running, index, current_dir
 detection = False
 image = np.zeros((600, 960))
 update_freq = 50  # milliseconds
@@ -162,8 +167,8 @@ with Camera() as cam:
 
 
     def update_clock():
-        global timer
-        timer_label_val.configure(text="$i " % timer)
+        global record_start_time
+        timer_label_val.configure(text="$i " % record_start_time)
         fabric_produced_label_val.configure(text="%f metre" % 1)
         root.after(1000, update_clock)
 
@@ -190,8 +195,9 @@ with Camera() as cam:
 
 
     def start_detection():
-        global detection, current_dir, running, update_freq
+        global detection, current_dir, running, update_freq, record_start_time
         detection = True
+        record_start_time = datetime.now()
 
         current_dir = create_new_directory_with_current_time(defect_folder)
 
@@ -228,7 +234,8 @@ with Camera() as cam:
 
 
     def start_recording():
-        global current_dir, running, update_freq, detection
+        global current_dir, running, update_freq, detection, record_start_time
+        record_start_time = datetime.now()
 
         detection = False
 
@@ -294,6 +301,19 @@ with Camera() as cam:
         return labels[label_index]
 
 
+    def save_to_db(type, image_path):
+        global record_start_time
+        defect_time = datetime.now()
+        passed_seconds = (defect_time - record_start_time).total_seconds()  # get how many seconds passed from start
+        predict_location = (passed_seconds * fabric_speed) / 1000
+        db.insert(record_create_date=record_start_time,
+                  created_date=defect_time,
+                  defect_type=type,
+                  image_path=image_path,
+                  defect_location=predict_location,
+                  is_valid=1)
+
+
     def predict(img):
         img = img.reshape(-1, 320, 300, 1)
         pred = model.predict(img)
@@ -318,53 +338,39 @@ with Camera() as cam:
         r1 = rimage[0:300, 0:320]
         pred_label = predict(r1)
         if pred_label != labels[2]:
-            save_image(r1)
+            save_image(pred_label, r1)
 
-        save_image(r1)  # save defect one
-        r2 = rimage[0:300, 321:640]
+        r2 = rimage[0:300, 320:640]
         pred_label = predict(r2)
         if pred_label != labels[2]:
-            save_image(r2)
+            save_image(pred_label, r2)
 
-        r3 = image[0:300, 641:960]
+        r3 = image[0:300, 640:960]
         pred_label = predict(r3)
         if pred_label != labels[2]:
-            save_image(r3)
+            save_image(pred_label, r3)
 
-        r4 = image[301:600, 0:320]
+        r4 = image[300:600, 0:320]
         pred_label = predict(r4)
         if pred_label != labels[2]:
-            save_image(r4)
+            save_image(pred_label, r4)
 
-        r5 = image[301:600, 321:640]
+        r5 = image[300:600, 320:640]
         pred_label = predict(r5)
         if pred_label != labels[2]:
-            save_image(r5)
+            save_image(pred_label, r5)
 
-        r6 = image[301:600, 641:960]
+        r6 = image[300:600, 640:960]
         pred_label = predict(r6)
         if pred_label != labels[2]:
-            save_image(r6)
-
-        # tahminiHataZaman(s) = hata buldugu saat - baslangic saat
-
-        # tahminiHataKonum = tahminiHataZaman * 10mm
-
-        # rapor icin veri kaydi
-
-        # goruntuyu klasore kaydet
-
-        # veri tabani kismi
-        # kumasin kayit baslangic saaati (timestamp)
-        # hata saati (timestamp)
-        # hatali goruntunun yolu
-        # onay (goruntu dogru bulmus mu)
+            save_image(pred_label, r6)
 
 
-    def save_image(img):
+    def save_image(img, defect_type):
         full_path = generate_file_name()
         save_im = Image.fromarray(img)
         save_im.save(full_path + '.jpg')
+        save_to_db(defect_type, full_path)
 
 
     def generate_file_name():
@@ -420,17 +426,48 @@ with Camera() as cam:
     stop_detection_button.grid(row=1, column=0, pady=4)
     # ------------------------------------------------------------- image frame
     # elements
-    timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: ')
+    timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: 09:00')
     timer_label.grid(row=0, column=0)
 
     timer_label_val = ttk.Label(image_frame)
     timer_label_val.grid(row=0, column=1)
 
-    fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): ')
+    fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): 30')
     fabric_produced_label.grid(row=1, column=0)
 
-    fabric_produced_label_val = ttk.Label(image_frame, text='1')
+    fabric_produced_label_val = ttk.Label(image_frame, text='')
     fabric_produced_label_val.grid(row=1, column=1)
+
+
+    # -------------------------------------------------------------------------------- Tab 2
+    def populate_list():
+        for i in tree_view.get_children():
+            tree_view.delete(i)
+        for row in db.fetch_all():
+            tree_view.insert('', 'end', values=row)
+
+
+    frame_query_view = ttk.LabelFrame(tab2, text='Raporlar')
+    frame_query_view.grid(row=0, column=0, padx=8, pady=4)
+    frame_query_view.pack(fill='both')
+
+    columns = ['id', 'tarih', 'Hata Türü', 'Görüntü']
+    tree_view = ttk.Treeview(frame_query_view, columns=columns, show="headings")
+    tree_view.column("id", width=30)
+    for col in columns[1:]:
+        tree_view.column(col, width=150)
+        tree_view.heading(col, text=col)
+    # router_tree_view.bind('<<TreeviewSelect>>', select_router)
+    tree_view.grid
+    tree_view.pack(fill="both")
+
+    scrollbar = Scrollbar(frame_query_view, orient='vertical')
+    scrollbar.configure(command=tree_view.yview)
+    scrollbar.pack(side="right", fill="y")
+
+    tree_view.config(yscrollcommand=scrollbar.set)
+
+    populate_list()
 
     # update_im()
     tk.mainloop()
