@@ -131,8 +131,17 @@ with Camera() as cam:
     root = tk.Tk()  # Create instance
     root.title('GAP Kumaş Hata Denetleme Sistemi')  # Add a title
 
+
+    def handle_tab_changed(event):
+        selection = event.widget.select()
+        tab = event.widget.tab(selection, "text")
+        if tab == "Hata Raporları":
+            populate_list()
+
+
     # ------------------------------------------------------------- Tabs
     tabControl = ttk.Notebook(root)  # Create Tab Control
+    tabControl.bind("<<NotebookTabChanged>>", handle_tab_changed)
 
     tab1 = ttk.Frame(tabControl)  # Create a Tab
     tab2 = ttk.Frame(tabControl)  # Create second Tab
@@ -366,7 +375,7 @@ with Camera() as cam:
             save_image(pred_label, r6)
 
 
-    def save_image(img, defect_type):
+    def save_image(defect_type, img):
         full_path = generate_file_name()
         save_im = Image.fromarray(img)
         save_im.save(full_path + '.jpg')
