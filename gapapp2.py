@@ -4,10 +4,14 @@ import os
 import tensorflow as tf
 from datetime import datetime
 import time
+from PIL import ImageTk,Image
+from scipy import misc
 
 from PySpin import PySpin
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
 import numpy as np
 from simple_pyspin import Camera
 from PIL import Image
@@ -27,7 +31,7 @@ db = Database(db_name)
 global camera_fps, camera_gain, camera_exp, camera_sharp
 camera_fps = 5
 camera_gain = 15
-camera_exp = 10000
+camera_exp = 20000
 camera_sharp = 2100
 
 global record_start_time, detection, image, update_freq, running, index, current_dir
@@ -36,6 +40,7 @@ image = np.zeros((600, 960))
 update_freq = 50  # milliseconds
 running = True
 index = 1
+
 
 model = tf.keras.models.load_model('assets/network3.h5')
 labels = ['hata1', 'hata2', 'saglam']
@@ -57,14 +62,6 @@ else:
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 
-sliced_pos = {
-    (0, 0, 320, 300),
-    (321, 0, 640, 300),
-    (641, 0, 960, 300),
-    (0, 300, 320, 600),
-    (321, 301, 641, 600),
-    (641, 301, 960, 600)
-}
 # sliced_pos2 = {
 #     [0:300, 0:320],
 #     [0:300, 321:640],
@@ -74,8 +71,6 @@ sliced_pos = {
 #     [301:600, 641:960]
 # }
 
-# running camera through simple_pyspin wrapper for PySpin (in turn a wrapper for the Spinnaker C++ framework)
-
 # reset camera to default parameters
 # the camera will remember parameters from the last run, so it's important to reset them here
 with Camera() as cam:
@@ -84,15 +79,15 @@ with Camera() as cam:
     cam.AcquisitionMode = 'SingleFrame'
     cam.SharpnessEnabled = True
     cam.SharpnessAuto = 'Off'
-    cam.Sharpness = 750
+    cam.Sharpness = camera_sharp
     cam.ExposureAuto = 'Off'
-    cam.ExposureTime = 10000
+    cam.ExposureTime = camera_exp
     cam.GainAuto = 'Off'
     gain = min(0, cam.get_info('Gain')['max'])
     cam.Gain = gain
     cam.AcquisitionFrameRateEnabled = True
     cam.AcquisitionFrameRateAuto = 'Off'
-    cam.AcquisitionFrameRate = 8
+    cam.AcquisitionFrameRate = camera_fps
     cam.pgrExposureCompensationAuto = 'Off'
     cam.pgrExposureCompensation = 1.5
 
@@ -107,14 +102,14 @@ with Camera() as cam:
     cam.SharpnessEnabled = True  # allow sharpness to be controlled
     # if we turn this off, need to comment out the next two lines
     cam.SharpnessAuto = 'Off'  # turn off auto sharpness
-    cam.Sharpness = 750  # set the sharpness to zero to start
+    cam.Sharpness = camera_sharp  # set the sharpness to zero to start
 
     cam.GainAuto = 'Off'  # turn automatic gain off
     gain = min(0, cam.get_info('Gain')['max'])  # don't allow the gain to exceed the max gain of 24
     cam.Gain = gain  # set the camera gain to 0
 
     cam.ExposureAuto = 'Off'  # turn off auto exposure
-    cam.ExposureTime = 10000  # microseconds
+    cam.ExposureTime = camera_exp  # microseconds
 
     # Allow both long and short exposure times, without creating lag in live-viewing when  doing short.
     if cam.ExposureTime > 100000:
@@ -122,7 +117,7 @@ with Camera() as cam:
     else:
         cam.AcquisitionFrameRateEnabled = True  # if True, can uncomment the next two lines
         cam.AcquisitionFrameRateAuto = 'Off'
-        cam.AcquisitionFrameRate = 8
+        cam.AcquisitionFrameRate = camera_fps
 
     cam.pgrExposureCompensationAuto = 'Off'
     cam.pgrExposureCompensation = 1.5
@@ -293,7 +288,7 @@ with Camera() as cam:
             if detection:
                 predict_defect_image(image)
             else:
-                save_image(image)
+                save_image("", image)
 
             im = ax.imshow(image, vmin=0, vmax=255)
             im.set_data(image)
@@ -381,7 +376,8 @@ with Camera() as cam:
         full_path = generate_file_name()
         save_im = Image.fromarray(img)
         save_im.save(full_path + '.jpg')
-        save_to_db(defect_type, full_path)
+        if detection:
+            save_to_db(defect_type, full_path)
 
 
     def generate_file_name():
@@ -449,7 +445,6 @@ with Camera() as cam:
     fabric_produced_label_val = ttk.Label(image_frame, text='')
     fabric_produced_label_val.grid(row=1, column=1)
 
-
     # -------------------------------------------------------------------------------- Tab 2
     def populate_list():
         for i in tree_view.get_children():
@@ -457,6 +452,15 @@ with Camera() as cam:
         for row in db.fetch_all():
             tree_view.insert('', 'end', values=row)
 
+
+    def show_selected_row(event):
+        item_pos = tree_view.selection()[0]
+        item = tree_view.item(item_pos)
+        id = item['values'][0]
+        rec_time = item['values'][1]
+        def_time = item['values'][2]
+        type = item['values'][3]
+        img_path = item['values'][4]
 
     frame_query_view = ttk.LabelFrame(tab2, text='Raporlar')
     frame_query_view.grid(row=0, column=0, padx=8, pady=4)
@@ -468,7 +472,7 @@ with Camera() as cam:
     for col in columns[1:]:
         tree_view.column(col, width=150)
         tree_view.heading(col, text=col)
-    # router_tree_view.bind('<<TreeviewSelect>>', select_router)
+    tree_view.bind("<Double-1>", show_selected_row)
     tree_view.pack(fill="both")
 
     scrollbar = Scrollbar(frame_query_view, orient='vertical')
