@@ -11,12 +11,23 @@ running = True
 
 
 def calculate_cost(img):
+    img = cv2.GaussianBlur(img, (3, 3), 0)
     # convolute with proper kernels
+    lap = cv2.Laplacian(img, cv2.CV_64F).var()
     laplacian = cv2.Laplacian(img, cv2.CV_64F)
     sobelx = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=5)  # x
     sobely = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=5)  # y
 
-    return 0
+    plt.subplot(2, 2, 1), plt.imshow(img, cmap='gray')
+    plt.title('Original'), plt.xticks([]), plt.yticks([])
+    plt.subplot(2, 2, 2), plt.imshow(laplacian, cmap='gray')
+    plt.title('Laplacian'), plt.xticks([]), plt.yticks([])
+    plt.subplot(2, 2, 3), plt.imshow(sobelx, cmap='gray')
+    plt.title('Sobel X'), plt.xticks([]), plt.yticks([])
+    plt.subplot(2, 2, 4), plt.imshow(sobely, cmap='gray')
+    plt.title('Sobel Y'), plt.xticks([]), plt.yticks([])
+
+    return lap
 
 
 def grap_image(gain=15, exp=20000, exp_comp=1.5, sharp=2100, bright=3000):
@@ -28,6 +39,7 @@ def grap_image(gain=15, exp=20000, exp_comp=1.5, sharp=2100, bright=3000):
 
         cam.AcquisitionFrameRateEnabled = True
         cam.AcquisitionFrameRateAuto = 'Off'
+        cam.AcquisitionFrameRate = 5
         cam.SharpnessEnabled = True
         cam.SharpnessAuto = 'Off'
         cam.ExposureAuto = 'Off'
@@ -38,18 +50,16 @@ def grap_image(gain=15, exp=20000, exp_comp=1.5, sharp=2100, bright=3000):
         cam.ExposureTime = exp
         cam.pgrExposureCompensation = exp_comp
         cam.Sharpness = sharp
-        cam.AcquisitionFrameRate = 5
         cam.start()
 
-        return cam.get_array()
+        return cam.get_image()
 
 
 def start_optimization():
     while running:
         image = grap_image()
         cost = calculate_cost(image)
-
-        pass
+        print(cost)
 
 
 if __name__ == "__main__":
