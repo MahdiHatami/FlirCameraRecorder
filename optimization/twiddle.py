@@ -1,16 +1,8 @@
 import math
-from geneticalgorithm import geneticalgorithm as ga
 import cv2
 from simple_pyspin import Camera
 from matplotlib import pyplot as plt
 import numpy as np
-
-# Import PySwarms
-import pyswarms as ps
-from pyswarms.utils.functions import single_obj as fx
-
-# gain, exp, exp_comp, sharp
-p = [15, 20000, 1.5, 2100]
 
 running = True
 
@@ -110,22 +102,5 @@ def twiddle():
                     dp[i] *= 0.95
 
 
-def genetic():
-    img = grap_image(p)
-    calculate_cost_lap(img)
-    model = ga(function=calculate_cost, dimension=3, variable_type='real', variable_boundaries=varbound)
-    model.run()
-
-
-def swarm():
-    options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9, 'k': 2, 'p': 2}
-
-    # Call instance of PSO
-    optimizer = ps.single.LocalBestPSO(n_particles=10, dimensions=2, options=options)
-
-    # Perform optimization
-    cost, pos = optimizer.optimize(fx.sphere, iters=1000)
-
-
 if __name__ == "__main__":
-    swarm()
+    twiddle()
