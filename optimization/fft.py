@@ -3,12 +3,11 @@ import cv2
 import matplotlib.pyplot as plt
 
 
-def sobel():
+def sobel(img):
     # img = cv2.imread('atki.jpg')
     # img = plt.imread('atki.jpg')
     # plt.imshow(img)
 
-    img = cv2.imread("moving.jpg")
 
     sobelx = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=5)  # x
     sobely = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=5)  # y
@@ -16,11 +15,11 @@ def sobel():
     gradient_magnitude = np.sqrt(np.square(sobelx) + np.square(sobely))
 
     a = cv2.Laplacian(img, cv2.CV_64F).var()
-    print(a)
 
     plt.imshow(gradient_magnitude)
     plt.title('Image')
     plt.show()
+    return a
 
 
 def detect_blur_fft(image, size=60):
@@ -60,6 +59,7 @@ def put_text_on_image(img, blurry):
 
 
 if __name__ == '__main__':
-    img = cv2.imread('atki.jpg', 0)
-    mean = detect_blur_fft(img, size=60)
+    img = cv2.imread('/Users/metis/Desktop/tt/nb1.jpg', 0)
+    mean = sobel(img)
     print(mean)
+    # sobel(img)
