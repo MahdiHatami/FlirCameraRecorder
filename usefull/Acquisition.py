@@ -120,11 +120,11 @@ class VideoCapture:
             ret, frame = self.vid.read()
             if ret:
                 # Return a boolean success flag and the current frame converted to BGR
-                return (ret, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+                return ret, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             else:
-                return (ret, None)
+                return ret, None
         else:
-            return (ret, None)
+            return None, None
 
     # Release the video source when the object is destroyed
     def __del__(self):

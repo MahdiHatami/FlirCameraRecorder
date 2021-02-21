@@ -1,441 +1,296 @@
-import tkinter as tk
-from tkinter import *
 import os
-import tensorflow as tf
-from datetime import datetime
-import time
-import threading
+import tkinter as tk
 import cv2
-import numpy as np
-import queue
-from PIL import Image
-from PIL import ImageTk
+import PIL.Image, PIL.ImageTk
+import time
+import datetime as dt
+import argparse
 from tkinter import ttk
+from datetime import datetime
+import numpy as np
+import tensorflow as tf
 from Database import Database
 
-db_name = "gap"
-DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-fabric_speed = 8  # 10 mm/s
-defect_folder = ""
-save_folder = ""
-folder_sep = ""
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
-db = Database(db_name)
+# gauth = GoogleAuth()
+# gauth.LocalWebserverAuth()  # client_secrets.json need to be in the same directory as the script
+# drive = GoogleDrive(gauth)
 
-global camera_fps, camera_gain, camera_exp, camera_sharp
 camera_fps = 5
 camera_gain = 15
 camera_exp = 20000
 camera_sharp = 2100
 
-global panelA
 
-global record_start_time, detection, image, update_freq, running, index, current_dir
-detection = False
-image = np.zeros((600, 960))
-update_freq = 50  # milliseconds
-running = True
-index = 1
+def generate_file_name():
+    global index
+    time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+    filename = '%s-%d.jpg' % (time_str, index)
+    # full_path = current_dir + "/" + filename
+    full_path = filename
+    index = index + 1
+    return full_path
 
-model = tf.keras.models.load_model('assets/network.h5')
-labels = ['hata1', 'hata2', 'saglam']
 
+def create_directory(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-# Class to Access Webcam
-class VideoCamera:
-    def __init__(self):
-        # passing 0 to VideoCapture means fetch video from webcam
-        self.video_capture = cv2.VideoCapture(0)
 
-    # release resources like webcam
-    def __del__(self):
-        self.video_capture.release()
+class App:
+    def __init__(self, window, window_title, video_source=0):
 
-    def read_image(self):
-        # get a single frame of video
-        ret, frame = self.video_capture.read()
-        # return the frame to user
-        return ret, frame
+        self.model = tf.keras.models.load_model('assets/network.h5')
+        self.labels = ['hata1', 'hata2', 'saglam']
+        self.width = 480
+        self.height = 300
+        self.record_start_time = datetime.now()
 
-    # method to release webcam manually
-    def release(self):
-        self.video_capture.release()
+        self.fabric_speed = 8
 
+        self.detection = False
 
-class WebcamThread(threading.Thread):
-    def __init__(self, app_gui, callback_queue):
-        # call super class (Thread) constructor
-        threading.Thread.__init__(self)
-        # save reference to callback_queue
-        self.callback_queue = callback_queue
+        self.window = window
+        self.window.title(window_title)
+        self.video_source = video_source
+        self.ok = False
 
-        # save left_view reference so that we can update it
-        self.app_gui = app_gui
+        self.db = Database('gapopenc')
 
-        # set a flag to see if this thread should stop
-        self.should_stop = False
+        # timer
+        self.timer = ElapsedTimeClock(self.window)
 
-        # set a flag to return current running/stop status of thread
-        self.is_stopped = False
+        self.timerLabel = None
 
-        # create a Video camera instance
-        self.camera = VideoCamera()
+        # open video source (by default this will try to open the computer webcam)
+        # self.vid = VideoCapture(self.video_source)
 
-    # define thread's run method
-    def run(self):
-        # start the webcam video feed
-        while True:
-            # check if this thread should stop
-            # if yes then break this loop
-            if self.should_stop:
-                self.is_stopped = True
-                break
+        self.vid = cv2.VideoCapture(video_source)
 
-            # read a video frame
-            ret, self.current_frame = self.camera.read_image()
+        self.vid.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+        self.vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
 
-            if ret == False:
-                print('Video capture failed')
-                exit(-1)
+        self.vid.set(cv2.CAP_PROP_FPS, camera_fps)
+        self.vid.set(cv2.CAP_PROP_GAIN, camera_gain)
+        self.vid.set(cv2.CAP_PROP_SHARPNESS, camera_sharp)
+        self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
+        self.vid.set(cv2.CAP_PROP_EXPOSURE, camera_exp)
 
-            # opencv reads image in BGR color space, let's convert it
-            # to RGB space
-            self.current_frame = cv2.cvtColor(self.current_frame, cv2.COLOR_BGR2RGB)
-            # key = cv2.waitKey(10)
+        # ------------------------------------------------------------- Tabs
+        self.tabControl = ttk.Notebook(window)  # Create Tab Control
+        self.tabControl.bind("<<NotebookTabChanged>>", self.handle_tab_changed)
 
-            if self.callback_queue.full() == False:
-                # put the update UI callback to queue so that main thread can execute it
-                self.callback_queue.put((lambda: self.update_on_main_thread(self.current_frame, self.app_gui)))
+        self.tab1 = ttk.Frame(self.tabControl)  # Create a Tab
+        self.tab2 = ttk.Frame(self.tabControl)  # Create second Tab
 
-        # fetching complete, let's release camera
-        # self.camera.release()
+        self.tabControl.add(self.tab1, text='Kayıt / Hata Tespit')  # Add the Tab
+        self.tabControl.add(self.tab2, text='Hata Raporları')  # Add second Tab
 
-    # this method will be used as callback and executed by main thread
-    def update_on_main_thread(self, current_frame, app_gui):
-        app_gui.update_webcam_output(current_frame)
-        face = detect_defects(current_frame)
-        app_gui.update_neural_network_output(face)
+        self.tabControl.pack(expand=1, fill='both')  # Pack to make visible
 
-    def __del__(self):
-        self.camera.release()
+        self.camera_spec_frame = ttk.LabelFrame(self.tab1, text='Kamera Özellikleri')
+        self.camera_spec_frame.grid(row=0, column=0)
 
-    def release_resources(self):
-        self.camera.release()
+        self.detection_frame = ttk.LabelFrame(self.tab1, text='Hata Tespiti')
+        self.detection_frame.grid(row=1, column=0, padx=8, pady=4)
 
-    def stop(self):
-        self.should_stop = True
+        self.image_frame = ttk.LabelFrame(self.tab1, text='Kamera Görüntüsü')
+        self.image_frame.grid(row=0, column=1, padx=8, pady=4)
 
+        # ------------------------------------------------------------- camera spec frame
+        tk.Label(self.camera_spec_frame, text="Fps: ").grid(row=0)
+        tk.Label(self.camera_spec_frame, text="Gain: ").grid(row=1)
+        tk.Label(self.camera_spec_frame, text="Exposure: ").grid(row=2)
+        tk.Label(self.camera_spec_frame, text="Sharpness: ").grid(row=3)
 
+        self.fps_entry = tk.Entry(self.camera_spec_frame, width=10)
+        self.fps_entry.grid(row=0, column=1)
+        self.fps_entry.insert(0, camera_fps)  # gain_entry.insert(0, cam.Gain)
 
-def populate_list():
-    for i in tree_view.get_children():
-        tree_view.delete(i)
-    for row in db.fetch_all():
-        tree_view.insert('', 'end', values=row)
+        self.gain_entry = tk.Entry(self.camera_spec_frame, width=10)
+        self.gain_entry.grid(row=1, column=1)
+        self.gain_entry.insert(0, camera_gain)  # gain_entry.insert(0, cam.Gain)
 
+        self.exposure_entry = tk.Entry(self.camera_spec_frame, width=10)
+        self.exposure_entry.grid(row=2, column=1)
+        self.exposure_entry.insert(0, camera_exp)  # gain_entry.insert(0, cam.Gain)
 
-def handle_tab_changed(event):
-    selection = event.widget.select()
-    tab = event.widget.tab(selection, "text")
-    if tab == "Hata Raporları":
-        populate_list()
+        self.sharp_entry = tk.Entry(self.camera_spec_frame, width=10)
+        self.sharp_entry.grid(row=3, column=1)
+        self.sharp_entry.insert(0, camera_sharp)  # gain_entry.insert(0, cam.Gain)
 
+        self.start_record_button = tk.Button(self.camera_spec_frame, text="Kayıt Yap", command=self.start_recording)
+        self.start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
 
-def create_new_directory_with_current_time(path):
-    date_str = datetime.now().strftime("%d-%m-%Y %H-%M-%S")
-    destination = path + folder_sep + date_str
-    os.mkdir(destination)
-    return destination
-
-
-
-class AppGui:
-
-    root = tk.Tk()  # Create instance
-    root.title('GAP Kumaş Hata Denetleme Sistemi')  # Add a title
-
-    # ------------------------------------------------------------- Tabs
-    tabControl = ttk.Notebook(root)  # Create Tab Control
-    tabControl.bind("<<NotebookTabChanged>>", handle_tab_changed)
-
-    tab1 = ttk.Frame(tabControl)  # Create a Tab
-    tab2 = ttk.Frame(tabControl)  # Create second Tab
-
-    tabControl.add(tab1, text='Kayıt / Hata Tespit')  # Add the Tab
-    tabControl.add(tab2, text='Hata Raporları')  # Add second Tab
-
-    tabControl.pack(expand=1, fill='both')  # Pack to make visible
-
-    camera_spec_frame = ttk.LabelFrame(tab1, text='Kamera Özellikleri')
-    camera_spec_frame.grid(row=0, column=0)
-
-    detection_frame = ttk.LabelFrame(tab1, text='Hata Tespiti')
-    detection_frame.grid(row=1, column=0, padx=8, pady=4)
-
-    image_frame = ttk.LabelFrame(tab1, text='Kamera Görüntüsü')
-    image_frame.grid(row=0, column=1, padx=8, pady=4)
-
-    # ------------------------------------------------------------- camera spec frame
-    tk.Label(camera_spec_frame, text="Fps: ").grid(row=0)
-    tk.Label(camera_spec_frame, text="Gain: ").grid(row=1)
-    tk.Label(camera_spec_frame, text="Exposure: ").grid(row=2)
-    tk.Label(camera_spec_frame, text="Sharpness: ").grid(row=3)
-
-    fps_entry = tk.Entry(camera_spec_frame, width=10)
-    fps_entry.grid(row=0, column=1)
-    fps_entry.insert(0, camera_fps)  # gain_entry.insert(0, cam.Gain)
-
-    gain_entry = tk.Entry(camera_spec_frame, width=10)
-    gain_entry.grid(row=1, column=1)
-    gain_entry.insert(0, camera_gain)  # gain_entry.insert(0, cam.Gain)
-
-    exposure_entry = tk.Entry(camera_spec_frame, width=10)
-    exposure_entry.grid(row=2, column=1)
-    exposure_entry.insert(0, camera_exp)  # gain_entry.insert(0, cam.Gain)
-
-    sharp_entry = tk.Entry(camera_spec_frame, width=10)
-    sharp_entry.grid(row=3, column=1)
-    sharp_entry.insert(0, camera_sharp)  # gain_entry.insert(0, cam.Gain)
-
-    start_record_button = tk.Button(camera_spec_frame, text="Kayıt Yap", command=start_recording)
-    start_record_button.grid(row=5, column=0, pady=10)  # change column to 2
-
-    stop_record_button = tk.Button(camera_spec_frame, text="Kaydı Durdur", command=stop_recording)
-    stop_record_button['state'] = tk.DISABLED
-    stop_record_button.grid(row=6, column=0, )  # change column to 2
-
-    # ------------------------------------------------------------- defect detection frame
-    # elements
-    start_detection_button = tk.Button(detection_frame, text="Hata Tespitine Başla", width=18, command=start_detection)
-    start_detection_button.grid(row=0, column=0, pady=4)  # change column to 2
-
-    stop_detection_button = tk.Button(detection_frame, text="Hata Tespitini Durdur", width=18, command=stop_detection)
-    stop_detection_button['state'] = tk.DISABLED
-    stop_detection_button.grid(row=1, column=0, pady=4)
-    # ------------------------------------------------------------- image frame
-    # elements
-    timer_label = ttk.Label(image_frame, text='Kayıt Başlangıç Saat: 09:00')
-    timer_label.grid(row=0, column=0)
-
-    timer_label_val = ttk.Label(image_frame)
-    timer_label_val.grid(row=0, column=1)
-
-    fabric_produced_label = ttk.Label(image_frame, text='Üretilen Kumaş(metre): 30')
-    fabric_produced_label.grid(row=1, column=0)
-
-    fabric_produced_label_val = ttk.Label(image_frame, text='')
-    fabric_produced_label_val.grid(row=1, column=1)
-
-    panelA = Label(master=image_frame)
-
-    # -------------------------------------------------------------------------------- Tab 2
-    def show_selected_row(event):
-        item_pos = tree_view.selection()[0]
-        item = tree_view.item(item_pos)
-        id = item['values'][0]
-        rec_time = item['values'][1]
-        def_time = item['values'][2]
-        type = item['values'][3]
-        img_path = item['values'][4]
-
-    frame_query_view = ttk.LabelFrame(tab2, text='Raporlar')
-    frame_query_view.grid(row=0, column=0, padx=8, pady=4)
-    frame_query_view.pack(fill='both')
-
-    columns = ['id', 'Kayıt Saati', 'Hata Saati', 'Hata Türü', 'Dosya Yolu', 'Hata Konumu']
-    tree_view = ttk.Treeview(frame_query_view, columns=columns, show="headings")
-    tree_view.column("id", width=30)
-    for col in columns[1:]:
-        tree_view.column(col, width=150)
-        tree_view.heading(col, text=col)
-    tree_view.bind("<Double-1>", show_selected_row)
-    tree_view.pack(fill="both")
-
-    scrollbar = Scrollbar(frame_query_view, orient='vertical')
-    scrollbar.configure(command=tree_view.yview)
-    scrollbar.pack(side="right", fill="y")
-
-    tree_view.config(yscrollcommand=scrollbar.set)
-
-    populate_list()
-
-    panelA = None
-
-    tk.mainloop()
-    def enable_entries():
-        fps_entry['state'] = tk.NORMAL
-        gain_entry['state'] = tk.NORMAL
-        exposure_entry['state'] = tk.NORMAL
-        sharp_entry['state'] = tk.NORMAL
-
-
-    def disable_entries():
-        fps_entry['state'] = tk.DISABLED
-        gain_entry['state'] = tk.DISABLED
-        exposure_entry['state'] = tk.DISABLED
-        sharp_entry['state'] = tk.DISABLED
-
-
-    def start_detection():
-        global detection, current_dir, running, update_freq, record_start_time
-        detection = True
-        record_start_time = datetime.now()
-
-        current_dir = create_new_directory_with_current_time(defect_folder)
-
-        start_detection_button['state'] = tk.DISABLED
-        stop_detection_button['state'] = tk.NORMAL
-
-        start_record_button['state'] = tk.DISABLED
-
-        disable_entries()
-
-        # cam.stop()  # just in case
-        # cam.AcquisitionMode = 'Continuous'  # set acquisition mode to continuous
-        # cam.start()
-        #
-        # val = cam.ExposureTime
-        # cam.ExposureTime = val  # we force set an exposure time. If not, the update may be buggy
-        # cam.ExposureTime = 10000 # we force set an exposure time. If not, the update may be buggy
-
-        running = True
-        update_freq = 50
-        update_im()
-
-
-    def stop_detection():
-        global detection, running
-        detection = False
-        running = False
-        enable_entries()
-
-        start_detection_button['state'] = tk.NORMAL
-        stop_detection_button['state'] = tk.DISABLED
-        start_record_button['state'] = tk.NORMAL
-
-
-    def takeSnapshot(self):
-        # grab the current timestamp and use it to construct the
-        # output path
-        ts = datetime.datetime.now()
-        filename = "{}.jpg".format(ts.strftime("%Y-%m-%d_%H-%M-%S"))
-        p = os.path.sep.join((self.outputPath, filename))
-        # save the file
-        cv2.imwrite(p, self.frame.copy())
-        print("[INFO] saved {}".format(filename))
-
-
-    def start_recording():
-        global panelA
-        global current_dir, running, update_freq, detection, record_start_time
-        record_start_time = datetime.now()
-
-        detection = False
-
-        timer_label_val.configure(text=time.strftime("%H:%M:%S"))
-
-        current_dir = create_new_directory_with_current_time(save_folder)
-
-        start_record_button['state'] = tk.DISABLED
-        stop_record_button['state'] = tk.NORMAL
-        start_detection_button['state'] = tk.DISABLED
-
-        disable_entries()
-
-        running = True
-        update_freq = 50
-
-        cap = cv2.VideoCapture(0)
-
-        while (running):
-            # Capture frame-by-frame
-            ret, frame = cap.read()
-
-            # Our operations on the frame come here
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-            global image
-            image = gray
-            update_im()
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-        # When everything done, release the capture
-        cap.release()
-        cv2.destroyAllWindows()
-
-        # cap = cv2.VideoCapture(running)
-        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 864)
-        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        # cap.set(cv2.CAP_PROP_BRIGHTNESS, 0.7)
-        # cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-        # cap.set(cv2.CAP_PROP_EXPOSURE, 0.5)
-        #
-        # row_bytes = float(len(image.getData())) / float(image.getRows())
-        # cv_image = np.array(image.getData(), dtype="uint8").reshape((image.getRows(), image.getCols()))
-        # cv2.imshow('frame', cv_image)
-
-        # update_im()
-
-
-    def stop_recording():
-        enable_entries()
-        global running
-        running = False
-        start_record_button['state'] = tk.NORMAL
-        stop_record_button['state'] = tk.DISABLED
-        start_detection_button['state'] = tk.NORMAL
-
-
-    def update_im():
-        if running:
-            global image, detection, current_dir, panelA
-
-            if detection:
-                predict_defect_image(image)
+        self.stop_record_button = tk.Button(self.camera_spec_frame, text="Kaydı Durdur", command=self.stop_recording)
+        self.stop_record_button['state'] = tk.DISABLED
+        self.stop_record_button.grid(row=6, column=0, )  # change column to 2
+
+        # ------------------------------------------------------------- defect detection frame
+        # elements
+        self.start_detection_button = tk.Button(self.detection_frame, text="Hata Tespitine Başla", width=18,
+                                                command=self.start_detection)
+        self.start_detection_button.grid(row=0, column=0, pady=4)  # change column to 2
+
+        self.stop_detection_button = tk.Button(self.detection_frame, text="Hata Tespitini Durdur", width=18,
+                                               command=self.stop_detection)
+        self.stop_detection_button['state'] = tk.DISABLED
+        self.stop_detection_button.grid(row=1, column=0, pady=4)
+        # ------------------------------------------------------------- image frame
+        # elements
+        self.imer_label = ttk.Label(self.image_frame, text='Kayıt Başlangıç Saat: 09:00')
+        self.imer_label.grid(row=0, column=0)
+
+        self.imer_label_val = ttk.Label(self.image_frame)
+        self.imer_label_val.grid(row=0, column=1)
+
+        self.abric_produced_label = ttk.Label(self.image_frame, text='Üretilen Kumaş(metre): 30')
+        self.abric_produced_label.grid(row=1, column=0)
+
+        self.abric_produced_label_val = ttk.Label(self.image_frame, text='')
+        self.abric_produced_label_val.grid(row=1, column=1)
+
+        # Create a canvas that can fit the above video source size
+        self.canvas = tk.Canvas(window, width=self.width, height=self.height)
+        self.canvas.pack()
+
+        # -------------------------------------------------------------------------------- Tab 2
+        self.frame_query_view = ttk.LabelFrame(self.tab2, text='Raporlar')
+        self.frame_query_view.grid(row=0, column=0, padx=8, pady=4)
+        self.frame_query_view.pack(fill='both')
+
+        columns = ['id', 'Kayıt Saati', 'Hata Saati', 'Hata Türü', 'Dosya Yolu', 'Hata Konumu']
+        self.tree_view = ttk.Treeview(self.frame_query_view, columns=columns, show="headings")
+        self.tree_view.column("id", width=30)
+        for col in columns[1:]:
+            self.tree_view.column(col, width=150)
+            self.tree_view.heading(col, text=col)
+        self.tree_view.bind("<Double-1>", self.show_selected_row())
+        self.tree_view.pack(fill="both")
+
+        self.scrollbar = tk.Scrollbar(self.frame_query_view, orient='vertical')
+        self.scrollbar.configure(command=self.tree_view.yview)
+        self.scrollbar.pack(side="right", fill="y")
+
+        self.tree_view.config(yscrollcommand=self.scrollbar.set)
+
+        # After it is called once, the update method will be automatically called every delay milliseconds
+        self.delay = 10
+        self.update()
+
+        self.window.mainloop()
+
+    # ----------------------------------------------------------------------------------------------------------------->
+    def get_frame(self):
+        if self.vid.isOpened():
+            ret, frame = self.vid.read()
+            if ret:
+                # Return a boolean success flag and the current frame converted to BGR
+                return ret, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             else:
-                # save_image("", image)
+                return ret, None
+        else:
+            return None, None
 
-                image = Image.fromarray(image)  # convert the images to PIL format
-                image = ImageTk.PhotoImage(image)  # and then to ImageTk format
+    def start_recording(self):
+        self.ok = True
+        self.timer.start()
 
-                if panelA is None:
-                    panelA = Label(master=image_frame, image=image)
-                    panelA.image = image
-                else:
-                    panelA.configure(image=image)
-                    panelA.image = image
+        self.detection = False
 
+        self.disable_entries()
+        self.start_record_button['state'] = tk.DISABLED
+        self.stop_record_button['state'] = tk.NORMAL
+        self.start_detection_button['state'] = tk.DISABLED
+        print("camera opened => Recording")
 
-    def to_array(img):
-        input_arr = tf.keras.preprocessing.image.img_to_array(img)
-        input_arr = np.array([input_arr])  # Convert single image to a batch.
-        return input_arr
+    def stop_recording(self):
+        self.ok = False
+        self.timer.stop()
 
+        self.enable_entries()
+        self.start_record_button['state'] = tk.NORMAL
+        self.stop_record_button['state'] = tk.DISABLED
+        self.start_detection_button['state'] = tk.NORMAL
+        print("camera closed => Not Recording")
 
-    def extract_label(label_index):
-        return labels[label_index]
+    def start_detection(self):
+        print("camera opened => Detecting")
+        self.record_start_time = datetime.now()
+        self.detection = True
 
+        self.start_detection_button['state'] = tk.DISABLED
+        self.stop_detection_button['state'] = tk.NORMAL
+        self.start_record_button['state'] = tk.DISABLED
+        self.disable_entries()
 
-    def save_to_db(type, image_path):
-        global record_start_time
-        defect_time = datetime.now()
-        passed_seconds = (defect_time - record_start_time).total_seconds()  # get how many seconds passed from start
-        predict_location = (passed_seconds * fabric_speed) / 1000
-        predict_location = "{:.2f}".format(predict_location)
-        db.insert(record_create_date=record_start_time,
-                  created_date=defect_time,
-                  defect_type=type,
-                  image_path=image_path,
-                  defect_location=predict_location,
-                  is_valid=1)
+        ret, frame = self.get_frame()
+        if self.detection:
+            if ret:
+                self.predict_defect_image(frame)
 
+    # self.vid.out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
 
-    def predict(img):
+    def stop_detection(self):
+        self.ok = False
+        self.timer.stop()
+        self.detection = False
+        self.enable_entries()
+
+    def update(self):
+        # Get a frame from the video source
+        ret, frame = self.get_frame()
+        if self.ok:
+            if ret:
+                self.photo = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
+                self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+        self.window.after(self.delay, self.update)
+
+    def handle_tab_changed(self, event):
+        selection = event.widget.select()
+        tab = event.widget.tab(selection, "text")
+        if tab == "Hata Raporları":
+            self.populate_list()
+
+    def populate_list(self):
+        for i in self.tree_view.get_children():
+            self.tree_view.delete(i)
+        for row in self.db.fetch_all():
+            self.tree_view.insert('', 'end', values=row)
+
+    def show_selected_row(self):
+        if self.tree_view.selection().__len__() > 0:
+            item_pos = self.tree_view.selection()[0]
+            item = self.tree_view.item(item_pos)
+            # id = item['values'][0]
+            # rec_time = item['values'][1]
+            # def_time = item['values'][2]
+            # type = item['values'][3]
+            # img_path = item['values'][4]
+
+    def enable_entries(self):
+        self.fps_entry['state'] = tk.NORMAL
+        self.gain_entry['state'] = tk.NORMAL
+        self.exposure_entry['state'] = tk.NORMAL
+        self.sharp_entry['state'] = tk.NORMAL
+
+    def disable_entries(self):
+        self.fps_entry['state'] = tk.DISABLED
+        self.gain_entry['state'] = tk.DISABLED
+        self.exposure_entry['state'] = tk.DISABLED
+        self.sharp_entry['state'] = tk.DISABLED
+
+        self.start_detection_button['state'] = tk.NORMAL
+        self.stop_detection_button['state'] = tk.DISABLED
+        self.start_record_button['state'] = tk.NORMAL
+
+    def predict(self, img):
         img = img.reshape(-1, 320, 300, 1)
-        pred = model.predict(img)
+        pred = self.model.predict(img)
         top_prediction_index = np.argmax(pred)
-        predicted_label = extract_label(top_prediction_index)
+        predicted_label = self.extract_label(top_prediction_index)
         # predictions = pred.tolist()[0]
         # extracted_predictions = [{extract_label(i): "%.2f%%" % (x * 100)} for i, x in enumerate(predictions)]
         # top_percent = "%.2f%%" % (predictions[top_prediction_index] * 100)
@@ -443,16 +298,7 @@ class AppGui:
 
         return predicted_label
 
-
-    def save_image(defect_type, img):
-        full_path = generate_file_name()
-        save_im = Image.fromarray(img)
-        save_im.save(full_path + '.jpg')
-        if detection:
-            save_to_db(defect_type, full_path)
-
-
-    def predict_defect_image(img):
+    def predict_defect_image(self, img):
         # 1s -> 10mm
 
         # resize image to half
@@ -461,114 +307,195 @@ class AppGui:
 
         # 6 slice and predict
         r1 = rimage[0:300, 0:320]
-        pred_label = predict(r1)
-        if pred_label != labels[2]:
-            save_image(pred_label, r1)
+        pred_label = self.predict(r1)
+        if pred_label != self.labels[2]:
+            self.save_image(pred_label, r1)
 
         r2 = rimage[0:300, 320:640]
-        pred_label = predict(r2)
-        if pred_label != labels[2]:
-            save_image(pred_label, r2)
+        pred_label = self.predict(r2)
+        if pred_label != self.labels[2]:
+            self.save_image(pred_label, r2)
 
-        r3 = image[0:300, 640:960]
-        pred_label = predict(r3)
-        if pred_label != labels[2]:
-            save_image(pred_label, r3)
+        r3 = rimage[0:300, 640:960]
+        pred_label = self.predict(r3)
+        if pred_label != self.labels[2]:
+            self.save_image(pred_label, r3)
 
-        r4 = image[300:600, 0:320]
-        pred_label = predict(r4)
-        if pred_label != labels[2]:
-            save_image(pred_label, r4)
+        r4 = rimage[300:600, 0:320]
+        pred_label = self.predict(r4)
+        if pred_label != self.labels[2]:
+            self.save_image(pred_label, r4)
 
-        r5 = image[300:600, 320:640]
-        pred_label = predict(r5)
-        if pred_label != labels[2]:
-            save_image(pred_label, r5)
+        r5 = rimage[300:600, 320:640]
+        pred_label = self.predict(r5)
+        if pred_label != self.labels[2]:
+            self.save_image(pred_label, r5)
 
-        r6 = image[300:600, 640:960]
-        pred_label = predict(r6)
-        if pred_label != labels[2]:
-            save_image(pred_label, r6)
+        r6 = rimage[300:600, 640:960]
+        pred_label = self.predict(r6)
+        if pred_label != self.labels[2]:
+            self.save_image(pred_label, r6)
+
+    def save_image(self, defect_type, img):
+        full_path = generate_file_name()
+        save_im = PIL.Image.fromarray(img)
+        save_im.save(full_path + '.jpg')
+        # cv2.imwrite("frame-" + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg",
+        #             cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        if self.detection:
+            self.save_to_db(self, defect_type, full_path)
+
+    def save_to_db(self, type, full_path):
+        defect_time = datetime.now()
+        # get how many seconds passed from start
+        passed_seconds = (defect_time - self.record_start_time).total_seconds()
+        predict_location = (passed_seconds * self.fabric_speed) / 1000
+        predict_location = "{:.2f}".format(predict_location)
+        self.db.insert(record_create_date=self.record_start_time,
+                       created_date=defect_time,
+                       defect_type=type,
+                       image_path=full_path,
+                       defect_location=predict_location,
+                       is_valid=1)
+
+    def extract_label(self, label_index):
+        return self.labels[label_index]
 
 
+class VideoCapture:
+    def __init__(self, video_source=0):
+        # Open the video source
+        self.vid = cv2.VideoCapture(video_source)
 
+        self.vid.set(cv2.CAP_PROP_FPS, camera_fps)
+        self.vid.set(cv2.CAP_PROP_GAIN, camera_gain)
+        self.vid.set(cv2.CAP_PROP_SHARPNESS, camera_sharp)
+        self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
+        self.vid.set(cv2.CAP_PROP_EXPOSURE, camera_exp)
 
-    def generate_file_name():
-        global index
-        time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
-        filename = '%s-%d.jpg' % (time_str, index)
-        full_path = current_dir + "/" + filename
-        index = index + 1
-        return full_path
+        if not self.vid.isOpened():
+            raise ValueError("Unable to open video source", video_source)
 
+        # Command Line Parser
+        args = CommandLineParser().args
 
-    def create_directory(path):
-        if not os.path.exists(path):
-            os.makedirs(path)
+        # create videowriter
 
+        # 1. Video Type
+        VIDEO_TYPE = {
+            'avi': cv2.VideoWriter_fourcc(*'XVID'),
+            # 'mp4': cv2.VideoWriter_fourcc(*'H264'),
+            'mp4': cv2.VideoWriter_fourcc(*'XVID'),
+        }
 
-class Wrapper:
-    def __init__(self):
-        self.app_gui = AppGui()
+        self.fourcc = VIDEO_TYPE[args.type[0]]
 
-        # create a Video camera instance
-        # self.camera = VideoCamera()
+        # 2. Video Dimension
+        STD_DIMENSIONS = {
+            '480p': (640, 480),
+            '720p': (1280, 720),
+            '1080p': (1920, 1080),
+            '4k': (3840, 2160),
+        }
+        res = STD_DIMENSIONS[args.res[0]]
+        print(args.name, self.fourcc, res)
+        # self.out = cv2.VideoWriter(args.name[0] + '.' + args.type[0], self.fourcc, 10, res)
 
-        # intialize variable to hold current webcam video frame
-        self.current_frame = None
+        # set video sourec width and height
+        self.vid.set(3, res[0])
+        self.vid.set(4, res[1])
 
-        # create a queue to fetch and execute callbacks passed
-        # from background thread
-        self.callback_queue = queue.Queue()
+        # Get video source width and height
+        self.width, self.height = res
 
-        # create a thread to fetch webcam feed video
-        self.webcam_thread = WebcamThread(self.app_gui, self.callback_queue)
+    # To get frames
+    def get_frame(self):
+        if self.vid.isOpened():
+            ret, frame = self.vid.read()
+            if ret:
+                # Return a boolean success flag and the current frame converted to BGR
+                return ret, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            else:
+                return ret, None
+        else:
+            return None, None
 
-        # save attempts made to fetch webcam video in case of failure
-        self.webcam_attempts = 0
-
-        # register callback for being called when GUI window is closed
-        self.app_gui.root.protocol("WM_DELETE_WINDOW", self.on_gui_closing)
-
-        # start webcam
-        self.start_video()
-
-        # start fetching video
-        self.fetch_webcam_video()
-
-    def on_gui_closing(self):
-        self.webcam_attempts = 51
-        self.webcam_thread.stop()
-        self.webcam_thread.join()
-        self.webcam_thread.release_resources()
-
-        self.app_gui.root.destroy()
-
-    def start_video(self):
-        self.webcam_thread.start()
-
-    def fetch_webcam_video(self):
-        try:
-            # while True:
-            # try to get a callback put by webcam_thread
-            # if there is no callback and call_queue is empty
-            # then this function will throw a Queue.Empty exception
-            callback = self.callback_queue.get_nowait()
-            callback()
-            self.webcam_attempts = 0
-            # self.app_gui.root.update_idletasks()
-            self.app_gui.root.after(70, self.fetch_webcam_video)
-
-        except queue.Empty:
-            if self.webcam_attempts <= 50:
-                self.webcam_attempts = self.webcam_attempts + 1
-                self.app_gui.root.after(100, self.fetch_webcam_video)
-
-    def launch(self):
-        self.app_gui.launch()
-
+    # Release the video source when the object is destroyed
     def __del__(self):
-        self.webcam_thread.stop()
+        if self.vid.isOpened():
+            self.vid.release()
+            # self.out.release()
+            cv2.destroyAllWindows()
 
-wrapper = Wrapper()
-wrapper.launch()
+
+class ElapsedTimeClock:
+    def __init__(self, window):
+        self.T = tk.Label(window, text='00:00:00', font=('times', 20, 'bold'), bg='gray')
+        self.T.pack(fill=tk.BOTH, expand=1)
+        self.elapsedTime = dt.datetime(1, 1, 1)
+        self.running = 0
+        self.lastTime = ''
+        t = time.localtime()
+        self.zeroTime = dt.timedelta(hours=t[3], minutes=t[4], seconds=t[5])
+        # self.tick()
+
+    def tick(self):
+        # get the current local time from the PC
+        self.now = dt.datetime(1, 1, 1).now()
+        self.elapsedTime = self.now - self.zeroTime
+        self.time2 = self.elapsedTime.strftime('%H:%M:%S')
+        # if time string has changed, update it
+        if self.time2 != self.lastTime:
+            self.lastTime = self.time2
+            self.T.config(text=self.time2)
+        # calls itself every 200 milliseconds
+        # to update the time display as needed
+        # could use >200 ms, but display gets jerky
+        self.updwin = self.T.after(100, self.tick)
+
+    def start(self):
+        if not self.running:
+            self.zeroTime = dt.datetime(1, 1, 1).now() - self.elapsedTime
+            self.tick()
+            self.running = 1
+
+    def stop(self):
+        if self.running:
+            self.T.after_cancel(self.updwin)
+            self.elapsedTime = dt.datetime(1, 1, 1).now() - self.zeroTime
+            self.time2 = self.elapsedTime
+            self.running = 0
+
+
+class CommandLineParser:
+
+    def __init__(self):
+        # Create object of the Argument Parser
+        parser = argparse.ArgumentParser(description='Script to record videos')
+
+        # Create a group for requirement
+        # for now no required arguments
+        # required_arguments=parser.add_argument_group('Required command line arguments')
+
+        # Only values is supporting for the tag --type. So nargs will be '1' to get
+        parser.add_argument('--type', nargs=1, default=['avi'], type=str,
+                            help='Type of the video output: for now we have only AVI & MP4')
+
+        # Only one values are going to accept for the tag --res. So nargs will be '1'
+        parser.add_argument('--res', nargs=1, default=['480p'], type=str,
+                            help='Resolution of the video output: for now we have 480p, 720p, 1080p & 4k')
+
+        # Only one values are going to accept for the tag --name. So nargs will be '1'
+        parser.add_argument('--name', nargs=1, default=['output'], type=str, help='Enter Output video title/name')
+
+        # Parse the arguments and get all the values in the form of namespace.
+        # Here args is of namespace and values will be accessed through tag names
+        self.args = parser.parse_args()
+
+
+def main():
+    # Create a window and pass it to the Application object
+    App(tk.Tk(), 'GAP Kumaş Hata Denetleme Sistemi')
+
+
+main()
