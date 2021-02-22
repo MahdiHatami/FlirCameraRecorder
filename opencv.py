@@ -9,14 +9,15 @@ from tkinter import ttk
 from datetime import datetime
 import numpy as np
 import tensorflow as tf
+from googleapiclient.http import MediaFileUpload
+
 from Database import Database
+import pickle
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
-
-# gauth = GoogleAuth()
-# gauth.LocalWebserverAuth()  # client_secrets.json need to be in the same directory as the script
-# drive = GoogleDrive(gauth)
+SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
 
 camera_fps = 5
 camera_gain = 15
@@ -41,6 +42,34 @@ def create_directory(path):
 
 class App:
     def __init__(self, window, window_title, video_source=0):
+
+        creds = None
+        # The file token.pickle stores the user's access and refresh tokens, and is
+        # created automatically when the authorization flow completes for the first
+        # time.
+        if os.path.exists('token.pickle'):
+            with open('token.pickle', 'rb') as token:
+                creds = pickle.load(token)
+        # If there are no (valid) credentials available, let the user log in.
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    'credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+            # Save the credentials for the next run
+            with open('token.pickle', 'wb') as token:
+                pickle.dump(creds, token)
+
+        self.drive_service = build('drive', 'v3', credentials=creds)
+
+        file_metadata = {'name': 'image/jpeg'}
+        media = MediaFileUpload('images/defect/1.jpg', mimetype='image/jpeg')
+        file = self.drive_service.files().create(body=file_metadata,
+                                                 media_body=media,
+                                                 fields='id').execute()
+        print('File ID: %s' % file.get('id'))
 
         self.model = tf.keras.models.load_model('assets/network.h5')
         self.labels = ['hata1', 'hata2', 'saglam']
@@ -183,6 +212,14 @@ class App:
         self.window.mainloop()
 
     # ----------------------------------------------------------------------------------------------------------------->
+    def upload_image(self):
+        file_metadata = {'name': 'images/defect/1.jpg'}
+        media = MediaFileUpload('files/photo.jpg', mimetype='image/jpeg')
+        file = self.drive_service.files().create(body=file_metadata,
+                                                 media_body=media,
+                                                 fields='id').execute()
+        print('File ID: %s' % file.get('id'))
+
     def get_frame(self):
         if self.vid.isOpened():
             ret, frame = self.vid.read()
