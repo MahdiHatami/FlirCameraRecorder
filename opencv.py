@@ -1,3 +1,4 @@
+import io
 import os
 import tkinter as tk
 import cv2
@@ -9,7 +10,7 @@ from tkinter import ttk
 from datetime import datetime
 import numpy as np
 import tensorflow as tf
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 from Database import Database
 import pickle
@@ -17,12 +18,14 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
 
 camera_fps = 5
 camera_gain = 15
 camera_exp = 20000
 camera_sharp = 2100
+
+saveLocally = False
 
 
 def generate_file_name():
@@ -64,12 +67,7 @@ class App:
 
         self.drive_service = build('drive', 'v3', credentials=creds)
 
-        file_metadata = {'name': 'image/jpeg'}
-        media = MediaFileUpload('images/defect/1.jpg', mimetype='image/jpeg')
-        file = self.drive_service.files().create(body=file_metadata,
-                                                 media_body=media,
-                                                 fields='id').execute()
-        print('File ID: %s' % file.get('id'))
+        # self.get_file_drive(file_id="1GEb5BGZMzcgp4VJljuoIvP5tE2xzcctc")
 
         self.model = tf.keras.models.load_model('assets/network.h5')
         self.labels = ['hata1', 'hata2', 'saglam']
@@ -374,13 +372,31 @@ class App:
             self.save_image(pred_label, r6)
 
     def save_image(self, defect_type, img):
-        full_path = generate_file_name()
-        save_im = PIL.Image.fromarray(img)
-        save_im.save(full_path + '.jpg')
-        # cv2.imwrite("frame-" + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg",
-        #             cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-        if self.detection:
-            self.save_to_db(self, defect_type, full_path)
+
+        if saveLocally:
+            full_path = generate_file_name()
+            save_im = PIL.Image.fromarray(img)
+            save_im.save(full_path + '.jpg')
+            # cv2.imwrite("frame-" + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg",
+            #             cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+            if self.detection:
+                self.save_to_db(self, defect_type, full_path)
+        else:
+            file_metadata = {'name': 'image/jpeg'}
+            media = MediaFileUpload('image.jpg', mimetype='image/jpeg')
+            file = self.drive_service.files().create(body=file_metadata,
+                                                     media_body=media,
+                                                     fields='id').execute()
+            print('File ID: %s' % file.get('id'))
+
+    def get_file_drive(self, file_id):
+        request = self.drive_service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+            print("Download %d%%." % int(status.progress() * 100))
 
     def save_to_db(self, type, full_path):
         defect_time = datetime.now()
