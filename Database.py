@@ -13,6 +13,7 @@ class Database:
             "defect_type TEXT,"
             "image_path TEXT,"
             "defect_location INTEGER,"
+            "file_id TEXT,"
             "is_valid INTEGER)")
         self.conn.commit()
 
@@ -28,9 +29,9 @@ class Database:
         rows = self.cur.fetchall()
         return rows
 
-    def insert(self, record_create_date, created_date, defect_type, image_path, defect_location, is_valid):
-        self.cur.execute("INSERT INTO defects VALUES (NULL, ?, ?, ?, ?, ?, ?)",
-                         (record_create_date, created_date, defect_type, image_path, defect_location, is_valid))
+    def insert(self, record_create_date, created_date, defect_type, image_path, defect_location, file_id, is_valid):
+        self.cur.execute("INSERT INTO defects VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)",
+                         (record_create_date, created_date, defect_type, image_path, defect_location, file_id, is_valid))
         self.conn.commit()
 
     def remove(self, id):

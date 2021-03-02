@@ -19,7 +19,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-
+# self.get_file_drive(file_id="1GEb5BGZMzcgp4VJljuoIvP5tE2xzcctc")
 camera_fps = 5
 camera_gain = 15
 camera_exp = 20000
@@ -28,13 +28,11 @@ camera_sharp = 2100
 saveLocally = False
 
 
-def generate_file_name():
-    global index
+def generate_file_name(self):
     time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
-    filename = '%s-%d.jpg' % (time_str, index)
+    filename = '%s-%d.jpg' % (time_str, self.index)
     # full_path = current_dir + "/" + filename
     full_path = filename
-    index = index + 1
     return full_path
 
 
@@ -45,7 +43,7 @@ def create_directory(path):
 
 class App:
     def __init__(self, window, window_title, video_source=0):
-
+        self.index = 1
         creds = None
         # The file token.pickle stores the user's access and refresh tokens, and is
         # created automatically when the authorization flow completes for the first
@@ -67,12 +65,34 @@ class App:
 
         self.drive_service = build('drive', 'v3', credentials=creds)
 
-        # self.get_file_drive(file_id="1GEb5BGZMzcgp4VJljuoIvP5tE2xzcctc")
+        time_str = str(datetime.now().strftime("%m_%d_%Y_%H_%M_%S"))
+        file_metadata = {
+            'name': time_str,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        parent_file = self.drive_service.files().create(body=file_metadata, fields='id').execute()
+        parent_folder_id = parent_file.get('id')
+
+        file_metadata = {
+            'name': 'Hata1',
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [parent_folder_id]
+        }
+        file = self.drive_service.files().create(body=file_metadata, fields='id').execute()
+        self.hata1_folder = file.get('id')
+
+        file_metadata = {
+            'name': 'Hata2',
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [parent_folder_id]
+        }
+        file = self.drive_service.files().create(body=file_metadata, fields='id').execute()
+        self.hata2_folder = file.get('id')
 
         self.model = tf.keras.models.load_model('assets/network.h5')
         self.labels = ['hata1', 'hata2', 'saglam']
-        self.width = 480
-        self.height = 300
+        self.width = 640
+        self.height = 480
         self.record_start_time = datetime.now()
 
         self.fabric_speed = 8
@@ -100,10 +120,10 @@ class App:
         self.vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
 
         self.vid.set(cv2.CAP_PROP_FPS, camera_fps)
-        self.vid.set(cv2.CAP_PROP_GAIN, camera_gain)
-        self.vid.set(cv2.CAP_PROP_SHARPNESS, camera_sharp)
-        self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
-        self.vid.set(cv2.CAP_PROP_EXPOSURE, camera_exp)
+        # self.vid.set(cv2.CAP_PROP_GAIN, camera_gain)
+        # self.vid.set(cv2.CAP_PROP_SHARPNESS, camera_sharp)
+        # self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
+        # self.vid.set(cv2.CAP_PROP_EXPOSURE, camera_exp)
 
         # ------------------------------------------------------------- Tabs
         self.tabControl = ttk.Notebook(window)  # Create Tab Control
@@ -204,18 +224,24 @@ class App:
         self.tree_view.config(yscrollcommand=self.scrollbar.set)
 
         # After it is called once, the update method will be automatically called every delay milliseconds
-        self.delay = 10
+        # 5fps 166
+        self.delay = 200
         self.update()
 
         self.window.mainloop()
 
     # ----------------------------------------------------------------------------------------------------------------->
-    def upload_image(self):
-        file_metadata = {'name': 'images/defect/1.jpg'}
-        media = MediaFileUpload('files/photo.jpg', mimetype='image/jpeg')
-        file = self.drive_service.files().create(body=file_metadata,
-                                                 media_body=media,
-                                                 fields='id').execute()
+    def upload_image(self, image, defect_type):
+        image_name = "defect-" + defect_type + "-" + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg"
+        cv2.imwrite(image_name, image)
+        if defect_type == 'hata1':
+            file_metadata = {'name': image_name, 'parents': [self.hata1_folder]}
+        else:
+            file_metadata = {'name': image_name, 'parents': [self.hata2_folder]}
+
+        media = MediaFileUpload(image_name, mimetype='image/jpeg')
+        file = self.drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        os.remove(image_name)
         print('File ID: %s' % file.get('id'))
 
     def get_frame(self):
@@ -223,7 +249,7 @@ class App:
             ret, frame = self.vid.read()
             if ret:
                 # Return a boolean success flag and the current frame converted to BGR
-                return ret, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                return ret, cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             else:
                 return ret, None
         else:
@@ -253,18 +279,16 @@ class App:
 
     def start_detection(self):
         print("camera opened => Detecting")
-        self.record_start_time = datetime.now()
+        self.timer.start()
+        self.ok = True
         self.detection = True
+        self.update()
+        self.record_start_time = datetime.now()
 
+        self.disable_entries()
         self.start_detection_button['state'] = tk.DISABLED
         self.stop_detection_button['state'] = tk.NORMAL
         self.start_record_button['state'] = tk.DISABLED
-        self.disable_entries()
-
-        ret, frame = self.get_frame()
-        if self.detection:
-            if ret:
-                self.predict_defect_image(frame)
 
     # self.vid.out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
 
@@ -274,14 +298,23 @@ class App:
         self.detection = False
         self.enable_entries()
 
+        self.start_detection_button['state'] = tk.NORMAL
+        self.stop_detection_button['state'] = tk.DISABLED
+        self.start_record_button['state'] = tk.NORMAL
+
     def update(self):
+        print("update " + self.index.__str__())
         # Get a frame from the video source
         ret, frame = self.get_frame()
         if self.ok:
             if ret:
                 self.photo = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(frame))
+                if self.detection:
+                    self.predict_defect_image(frame)
                 self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
-        self.window.after(self.delay, self.update)
+            self.window.after(self.delay, self.update)
+
+        self.index = self.index + 1
 
     def handle_tab_changed(self, event):
         selection = event.widget.select()
@@ -334,60 +367,64 @@ class App:
         return predicted_label
 
     def predict_defect_image(self, img):
+        print("predict " + self.index.__str__())
         # 1s -> 10mm
 
-        # resize image to half
-        im1 = img
-        rimage = np.resize(im1, (600, 960))
+        if self.index > 5:
+            # resize image to half
+            im1 = img
+            rimage = cv2.resize(im1, dsize=(960, 600), interpolation=cv2.INTER_CUBIC)
 
-        # 6 slice and predict
-        r1 = rimage[0:300, 0:320]
-        pred_label = self.predict(r1)
-        if pred_label != self.labels[2]:
-            self.save_image(pred_label, r1)
+            # 6 slice and predict
+            r1 = rimage[0:300, 0:320]
+            pred_label = self.predict(r1)
+            if pred_label != self.labels[2]:
+                self.save_image(pred_label, r1)
+                return
 
-        r2 = rimage[0:300, 320:640]
-        pred_label = self.predict(r2)
-        if pred_label != self.labels[2]:
-            self.save_image(pred_label, r2)
+            r2 = rimage[0:300, 320:640]
+            pred_label = self.predict(r2)
+            if pred_label != self.labels[2]:
+                self.save_image(pred_label, r2)
+                return
 
-        r3 = rimage[0:300, 640:960]
-        pred_label = self.predict(r3)
-        if pred_label != self.labels[2]:
-            self.save_image(pred_label, r3)
+            r3 = rimage[0:300, 640:960]
+            pred_label = self.predict(r3)
+            if pred_label != self.labels[2]:
+                self.save_image(pred_label, r3)
+                return
 
-        r4 = rimage[300:600, 0:320]
-        pred_label = self.predict(r4)
-        if pred_label != self.labels[2]:
-            self.save_image(pred_label, r4)
+            r4 = rimage[300:600, 0:320]
+            pred_label = self.predict(r4)
+            if pred_label != self.labels[2]:
+                self.save_image(pred_label, r4)
+                return
 
-        r5 = rimage[300:600, 320:640]
-        pred_label = self.predict(r5)
-        if pred_label != self.labels[2]:
-            self.save_image(pred_label, r5)
+            r5 = rimage[300:600, 320:640]
+            pred_label = self.predict(r5)
+            if pred_label != self.labels[2]:
+                self.save_image(pred_label, r5)
+                return
 
-        r6 = rimage[300:600, 640:960]
-        pred_label = self.predict(r6)
-        if pred_label != self.labels[2]:
-            self.save_image(pred_label, r6)
+            r6 = rimage[300:600, 640:960]
+            pred_label = self.predict(r6)
+            if pred_label != self.labels[2]:
+                self.save_image(pred_label, r6)
+                return
 
     def save_image(self, defect_type, img):
+        print(defect_type)
+        file_id = 0
+        full_path = generate_file_name(self)
+        save_im = PIL.Image.fromarray(img)
 
         if saveLocally:
-            full_path = generate_file_name()
-            save_im = PIL.Image.fromarray(img)
             save_im.save(full_path + '.jpg')
-            # cv2.imwrite("frame-" + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg",
-            #             cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-            if self.detection:
-                self.save_to_db(self, defect_type, full_path)
         else:
-            file_metadata = {'name': 'image/jpeg'}
-            media = MediaFileUpload('image.jpg', mimetype='image/jpeg')
-            file = self.drive_service.files().create(body=file_metadata,
-                                                     media_body=media,
-                                                     fields='id').execute()
-            print('File ID: %s' % file.get('id'))
+            self.upload_image(image=img, defect_type=defect_type)
+
+        if self.detection:
+            self.save_to_db(defect_type_str=defect_type, full_path=full_path, file_id=file_id)
 
     def get_file_drive(self, file_id):
         request = self.drive_service.files().get_media(fileId=file_id)
@@ -398,7 +435,7 @@ class App:
             status, done = downloader.next_chunk()
             print("Download %d%%." % int(status.progress() * 100))
 
-    def save_to_db(self, type, full_path):
+    def save_to_db(self, defect_type_str, full_path, file_id):
         defect_time = datetime.now()
         # get how many seconds passed from start
         passed_seconds = (defect_time - self.record_start_time).total_seconds()
@@ -406,9 +443,10 @@ class App:
         predict_location = "{:.2f}".format(predict_location)
         self.db.insert(record_create_date=self.record_start_time,
                        created_date=defect_time,
-                       defect_type=type,
+                       defect_type=defect_type_str,
                        image_path=full_path,
                        defect_location=predict_location,
+                       file_id=file_id,
                        is_valid=1)
 
     def extract_label(self, label_index):
@@ -419,12 +457,6 @@ class VideoCapture:
     def __init__(self, video_source=0):
         # Open the video source
         self.vid = cv2.VideoCapture(video_source)
-
-        self.vid.set(cv2.CAP_PROP_FPS, camera_fps)
-        self.vid.set(cv2.CAP_PROP_GAIN, camera_gain)
-        self.vid.set(cv2.CAP_PROP_SHARPNESS, camera_sharp)
-        self.vid.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0)
-        self.vid.set(cv2.CAP_PROP_EXPOSURE, camera_exp)
 
         if not self.vid.isOpened():
             raise ValueError("Unable to open video source", video_source)
@@ -483,7 +515,7 @@ class VideoCapture:
 
 class ElapsedTimeClock:
     def __init__(self, window):
-        self.T = tk.Label(window, text='00:00:00', font=('times', 20, 'bold'), bg='gray')
+        self.T = tk.Label(window, text='00:00:00', font=('times', 20, 'bold'), bg='green')
         self.T.pack(fill=tk.BOTH, expand=1)
         self.elapsedTime = dt.datetime(1, 1, 1)
         self.running = 0
